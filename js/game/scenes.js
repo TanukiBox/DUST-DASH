@@ -99,6 +99,7 @@
       g.events.length = 0;
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
       if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt * 5);
+      this.watchNewObstacles(app, g);
     },
     render: function (app, ctx) {
       var g = this.game;
@@ -107,9 +108,29 @@
       drawHud(app, ctx, g, this.comboPop);
       this.drawHints(app, ctx, g);
     },
+    /** 初めて見る種類の障害物が画面に入ったら、よけ方を1回だけ教える */
+    watchNewObstacles: function (app, g) {
+      var seen = app.seenHints = app.seenHints || {};
+      var right = g.cam.x + g.cam.viewW * 0.92;
+      var key = null;
+      for (var i = 0; i < g.items.length && !key; i++) {
+        var it = g.items[i];
+        if (it.x > right || it.dead) continue;
+        if (it.type === 'giantCactus' && !seen.tall) key = 'tall';
+        if (it.type === 'vulture' && !seen.duck) key = 'duck';
+      }
+      for (i = 0; i < g.holes.length && !key; i++) {
+        if (g.holes[i].wide && g.holes[i].x0 < right && !seen.tall) key = 'tall';
+      }
+      if (key) {
+        seen[key] = true;
+        this.hint.special = { text: T(key === 'tall' ? 'hintTall' : 'hintDuck'), until: g.time + 2.2 };
+      }
+    },
     drawHints: function (app, ctx, g) {
       var ui = app.ui, h = this.hint, text = null;
-      if (!h.jumped && g.time < 6) text = T('hintJump');
+      if (h.special && g.time < h.special.until) text = h.special.text;
+      else if (!h.jumped && g.time < 6) text = T('hintJump');
       else if (g.eaten === 0 && g.time < 12) text = T('hintStomp');
       else if (h.firstEatT !== null && g.maxCombo < 2 && g.time - h.firstEatT < 4) text = T('hintCombo');
       if (!text || g.over) return;

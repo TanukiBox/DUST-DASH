@@ -57,11 +57,14 @@
       cactusTall:  { w: 40, h: 72 },
       cactusRound: { w: 44, h: 42 },
       rockBig:     { w: 62, h: 40 },
-      rockSmall:   { w: 46, h: 28 }
+      rockSmall:   { w: 46, h: 28 },
+      giantCactus: { w: 56, h: 205 },            // 2段ジャンプでよける
+      vulture:     { w: 72, h: 78, lift: 90, vx: 120 } // lift = 地面から体の下までの高さ（走っていればくぐれる）
     },
     OBSTACLE_LOSS: 18,        // サボテン・岩に当たったときの減速（km/h）
     HOLE_LOSS: 26,            // 穴に落ちたときの減速（km/h）
     HOLE_WIDTH: 0.3,          // 穴の幅（秒換算。速いほど広くなる）
+    WIDE_HOLE_WIDTH: 0.85,    // 大穴の幅（1回のジャンプでは届かない）
     HOLE_RECOVER_V: 1250,     // 穴から飛び出す勢い
 
     // ---- 速いときの見やすさ ----
@@ -70,6 +73,10 @@
     GLOW_FULL: 120,
     MARKER_FROM: 60,          // この速さから、画面右はしに「もうすぐ来る」印を出す
     MARKER_TIME: 0.9,         // 何秒前から印を出すか
+
+    // ---- だんだん難しく ----
+    RAMP_DISTANCE: 900,       // この距離（m）で難しさが最大になる
+    OBSTACLE_RAMP: 1.5,       // 最大のとき、障害物の出やすさが何倍増えるか（1.5 = 2.5倍）
 
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）

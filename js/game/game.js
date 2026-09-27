@@ -126,7 +126,8 @@
   Game.prototype.collide = function (it) {
     var p = this.player;
     var b = p.box();
-    var w = it.w * this.visScale, h = it.h * this.visScale;
+    var vs = this.scaleOf(it);
+    var w = it.w * vs, h = it.h * vs;
     var ix0 = it.x - w / 2, ix1 = it.x + w / 2;
     var iTop = it.y - h, iBot = it.y;
     var m = CFG.STOMP_MARGIN_X;
@@ -160,6 +161,13 @@
         this.hurt(it, CFG.PREY.snake.hitLoss);
       }
     }
+  };
+
+  /** 引きの画のときの描く倍率（背の高いものは高さが変わると困るので控えめ） */
+  Game.prototype.scaleOf = function (it) {
+    if (it.noScale) return 1;
+    if (it.obstacle) return Math.min(this.visScale, 1.15);
+    return this.visScale;
   };
 
   /**
@@ -304,17 +312,25 @@
     { name: 'rock', w: 10, minCount: 4, obstacle: true },
     { name: 'hole', w: 10, minCount: 6, obstacle: true },
     { name: 'holeBug', w: 7, minCount: 6, obstacle: true },
-    { name: 'cactusBug', w: 7, minCount: 6, obstacle: true }
+    { name: 'cactusBug', w: 7, minCount: 6, obstacle: true },
+    // 2段ジャンプでよけるもの
+    { name: 'giantCactus', w: 10, minCount: 8, obstacle: true },
+    { name: 'wideHole', w: 6, minCount: 10, obstacle: true },
+    // ジャンプすると当たるもの
+    { name: 'vulture', w: 9, minCount: 8, obstacle: true },
+    { name: 'vulture2', w: 4, minCount: 16, obstacle: true }
   ];
 
   Game.prototype.pickPattern = function () {
     var list = [], total = 0;
+    var level = U.clamp(this.meters() / CFG.RAMP_DISTANCE, 0, 1); // 先に進むほど障害物が増える
     for (var i = 0; i < PATTERNS.length; i++) {
       var pt = PATTERNS[i];
       if (pt.minCount && this.spawned < pt.minCount) continue;
       if (pt.name === this.lastPattern && pt.name === 'snake') continue; // ヘビ2連続はなし
       if (pt.obstacle && this.lastObstacle) continue;                    // 障害物2連続はなし
-      list.push(pt); total += pt.w;
+      var w = pt.w * (pt.obstacle ? 1 + CFG.OBSTACLE_RAMP * level : 1);
+      list.push({ name: pt.name, w: w }); total += w;
     }
     var r = Math.random() * total;
     for (i = 0; i < list.length; i++) { r -= list[i].w; if (r <= 0) return list[i].name; }
@@ -338,6 +354,25 @@
         var hw = this.placeHole(x);
         add(this, 'bug', x + hw * 0.5, -U.rand(100, 130));
         return hw;
+      case 'giantCactus': add(this, 'giantCactus', x); return 0;
+      case 'wideHole':
+        var ww = U.clamp(Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * CFG.WIDE_HOLE_WIDTH, 300, 1400);
+        this.holes.push({ x0: x, x1: x + ww, wide: true });
+        // ときどき真ん中に虫：踏めば2段ジャンプなしでも渡れる
+        if (Math.random() < 0.4) add(this, 'bug', x + ww * 0.45, -U.rand(110, 140));
+        return ww;
+      case 'vulture':
+      case 'vulture2':
+        // 前の並びで跳ねている最中に来ないよう、少し間をあける
+        var pre = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.5;
+        add(this, 'vulture', x + pre);
+        if (name === 'vulture2') {
+          // 2羽が上下に重なって飛ぶ：2段ジャンプでもほぼ越えられない
+          var top = DD.createItem('vulture', x + pre + 40);
+          top.baseY = top.y = -(CFG.OBSTACLE.vulture.lift + CFG.OBSTACLE.vulture.h + 6);
+          this.items.push(top);
+        }
+        return pre;
       case 'cactusBug':
         // サボテンを飛び越えた先に虫
         add(this, 'cactus', x);
@@ -396,7 +431,8 @@
       var name = this.pickPattern();
       var len = this.place(name, this.nextSpawnX);
       this.lastPattern = name;
-      this.lastObstacle = /cactus|rock|hole/.test(name);
+      this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture/.test(name);
+      if (this.lastObstacle) this.seenObstacle = true;
       this.spawned++;
       this.nextSpawnX += len + v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX);
     }
@@ -470,7 +506,8 @@
       ctx.save();
       ctx.translate(it.x, it.y);
       var bump = it.bump > 0 ? 1 + Math.sin(it.bump * 30) * 0.06 : 1;
-      ctx.scale(vs * bump, vs / bump);
+      var sc = this.scaleOf(it);
+      ctx.scale(sc * bump, sc / bump);
       ctx.translate(-it.x, -it.y);
       DD.KINDS[it.type].draw(ctx, it);
       ctx.restore();
@@ -507,7 +544,8 @@
     for (var i = 0; i < this.items.length; i++) {
       var it = this.items[i];
       if (it.dead) continue;
-      list.push({ x: it.x - it.w * this.visScale / 2, it: it, y: it.y - it.h * this.visScale / 2 });
+      var sc2 = this.scaleOf(it);
+      list.push({ x: it.x - it.w * sc2 / 2, it: it, y: it.y - it.h * sc2 / 2 });
     }
     for (i = 0; i < this.holes.length; i++) list.push({ x: this.holes[i].x0, hole: true, y: 10 });
     // いちばん近いものだけを出す（重なって読めなくならないように）
