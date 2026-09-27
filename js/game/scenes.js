@@ -84,7 +84,8 @@
       var self = this;
       this.game = new DD.Game();
       this.game.onOver = function (res) { app.go('result', { game: self.game, result: res }); };
-      this.hint = { jumped: false, firstEatT: null, doubleDone: false };
+      this.hint = { jumped: false, firstEatT: null };
+      this.comboPop = 0;
       app.input.setButtons([]);
     },
     update: function (app, dt) {
@@ -93,23 +94,24 @@
       for (var i = 0; i < g.events.length; i++) {
         var e = g.events[i];
         if (e === 'jump') this.hint.jumped = true;
-        if (e === 'double') this.hint.doubleDone = true;
+        if (e === 'combo') this.comboPop = 1;
       }
       g.events.length = 0;
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
+      if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt * 5);
     },
     render: function (app, ctx) {
       var g = this.game;
       g.render(ctx, app.dpr);
       uiSpace(ctx, app);
-      drawHud(app, ctx, g);
+      drawHud(app, ctx, g, this.comboPop);
       this.drawHints(app, ctx, g);
     },
     drawHints: function (app, ctx, g) {
       var ui = app.ui, h = this.hint, text = null;
       if (!h.jumped && g.time < 6) text = T('hintJump');
       else if (g.eaten === 0 && g.time < 12) text = T('hintStomp');
-      else if (h.firstEatT !== null && !h.doubleDone && g.time - h.firstEatT < 3) text = T('hintDouble');
+      else if (h.firstEatT !== null && g.maxCombo < 2 && g.time - h.firstEatT < 4) text = T('hintCombo');
       if (!text || g.over) return;
       var size = Math.min(ui.w * 0.06, 28);
       var y = Math.max(ui.safeTop + 130, g.cam.groundY / ui.u * 0.42);
@@ -124,7 +126,7 @@
   };
 
   /** 画面上の速度・距離 */
-  function drawHud(app, ctx, g) {
+  function drawHud(app, ctx, g, comboPop) {
     var ui = app.ui;
     var x = ui.safeLeft + 18, y = ui.safeTop + 16;
     var v = Math.round(g.speed);
@@ -138,6 +140,18 @@
     var jx = U.rand(-jit, jit), jy = U.rand(-jit, jit);
     D.text(ctx, String(v), x + 118 + jx, y + 38 + jy, { size: 64, fill: color, align: 'right' });
     D.text(ctx, 'km/h', x + 124, y + 52, { size: 22, fill: COL.white, align: 'left', lw: 6 });
+
+    // コンボ中は速度の下に大きく出す
+    if (g.combo >= 2) {
+      var cs = 1 + (comboPop || 0) * 0.35;
+      var hot = Math.min(1, (g.combo - 1) / 6);
+      ctx.save();
+      ctx.translate(x + 4, y + 100);
+      ctx.scale(cs, cs);
+      ctx.rotate(-0.05);
+      D.text(ctx, g.combo + ' ' + T('comboHud'), 0, 0, { size: 30 + hot * 8, fill: g.combo >= 5 ? COL.accent : COL.good, align: 'left' });
+      ctx.restore();
+    }
 
     var m = g.meters();
     D.text(ctx, m + ' m', ui.w - ui.safeRight - 18, y + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
@@ -206,21 +220,29 @@
       D.text(ctx, String(count), startX, py + 136, { size: big, fill: COL.accent, align: 'left', lw: big * 0.16 });
       D.text(ctx, 'km/h', startX + numW + 10, py + 160, { size: 30, fill: COL.ink, align: 'left', lw: 0 });
 
-      // 距離・ヘビ
-      var rowY = py + 240, colW = pw / 2;
-      D.text(ctx, T('distance'), px + colW / 2, rowY - 22, { size: 18, fill: COL.sandDeep, lw: 0 });
-      D.text(ctx, res.distance + ' m', px + colW / 2, rowY + 14, { size: 34, fill: COL.ink, lw: 0 });
-      D.text(ctx, T('snakes'), px + colW * 1.5, rowY - 22, { size: 18, fill: COL.sandDeep, lw: 0 });
+      // 距離・ヘビ・最大コンボ
+      var rowY = py + 240, colW = pw / 3;
+      var c1 = px + colW / 2, c2 = px + colW * 1.5, c3 = px + colW * 2.5;
+      var lab = { size: 17, fill: COL.sandDeep, lw: 0, maxW: colW - 12 };
+      var val = { size: 32, fill: COL.ink, lw: 0, maxW: colW - 14 };
+      D.text(ctx, T('distance'), c1, rowY - 22, lab);
+      D.text(ctx, res.distance + ' m', c1, rowY + 14, val);
+      D.text(ctx, T('snakes'), c2, rowY - 22, lab);
       ctx.save();
-      ctx.translate(px + colW * 1.5 - 34, rowY + 30);
-      ctx.scale(0.5, 0.5);
+      ctx.translate(c2 - 22, rowY + 30);
+      ctx.scale(0.42, 0.42);
       DD.KINDS.snake.draw(ctx, { x: 0, y: 0, t: this.t, strike: 0 });
       ctx.restore();
-      D.text(ctx, '× ' + res.snakes, px + colW * 1.5 + 18, rowY + 14, { size: 34, fill: COL.ink, lw: 0 });
+      D.text(ctx, '×' + res.snakes, c2 + 20, rowY + 14, { size: 32, fill: COL.ink, lw: 0 });
+      D.text(ctx, T('maxCombo'), c3, rowY - 22, lab);
+      D.text(ctx, String(res.maxCombo), c3, rowY + 14, val);
       // 区切り線
       ctx.strokeStyle = 'rgba(74, 45, 26, 0.2)';
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(cx, rowY - 34); ctx.lineTo(cx, rowY + 38); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px + colW, rowY - 34); ctx.lineTo(px + colW, rowY + 38);
+      ctx.moveTo(px + colW * 2, rowY - 34); ctx.lineTo(px + colW * 2, rowY + 38);
+      ctx.stroke();
       ctx.restore();
 
       // もう一度ボタン

@@ -86,14 +86,14 @@
   // トカゲ：地面をちょこちょこ右へ走る
   // ------------------------------------------------------------
   DD.KINDS.lizard = {
-    create: function (x, y) { return base('lizard', x, 0); },
+    create: function (x, y) { var l = base('lizard', x, 0); l.vx = CFG.PREY.lizard.vx; return l; },
     update: function (l, dt) {
       l.t += dt;
-      l.x += CFG.PREY.lizard.vx * dt;
+      l.x += l.vx * dt;
     },
     draw: function (ctx, l) {
       var lw = D.LW * 0.85;
-      var run = l.t * 22;
+      var run = l.vx > 0 ? l.t * 22 : Math.sin(l.t * 2) * 0.4; // 止まっているときは足をそろえる
       ctx.save();
       ctx.translate(l.x, l.y);
       // しっぽ（くねくね）

@@ -70,9 +70,22 @@
     }
   };
 
+  /** 踏まれた獲物がぺちゃんこになる */
+  Effects.prototype.ghost = function (it) {
+    var copy = {};
+    for (var k in it) copy[k] = it[k];
+    this.parts.push({ kind: 'ghost', item: copy, x: it.x, y: it.y, vx: 0, vy: 0, life: 0, max: 0.14 });
+  };
+
+  /** 踏んだ場所に広がる輪 */
+  Effects.prototype.ring = function (x, y, r) {
+    this.parts.push({ kind: 'ring', x: x, y: y, vx: 0, vy: 0, r: r, life: 0, max: 0.28 });
+  };
+
   // ---- 数字のポップ（+5 km/h など）----
-  Effects.prototype.pop = function (x, y, text, color, size) {
-    this.pops.push({ x: x, y: y, text: text, color: color || COL.good, size: size || 30, life: 0, max: 0.9 });
+  /** vx を渡すと横に流れる（主人公と一緒に進ませて画面から消えないように） */
+  Effects.prototype.pop = function (x, y, text, color, size, vx) {
+    this.pops.push({ x: x, y: y, vx: vx || 0, text: text, color: color || COL.good, size: size || 30, life: 0, max: 0.9 });
   };
 
   Effects.prototype.shake = function (amp, time) {
@@ -87,6 +100,7 @@
       if (p.life >= p.max) { this.parts.splice(i, 1); continue; }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      if (p.kind === 'ghost' || p.kind === 'ring') continue;
       if (p.kind === 'dust') {
         p.vx *= Math.pow(0.1, dt);
         p.vy *= Math.pow(0.2, dt);
@@ -99,6 +113,7 @@
     for (i = this.pops.length - 1; i >= 0; i--) {
       var q = this.pops[i];
       q.life += dt;
+      q.x += q.vx * dt;
       if (q.life >= q.max) this.pops.splice(i, 1);
     }
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeAmp = 0;
@@ -116,6 +131,16 @@
   Effects.prototype.drawDust = function (ctx) {
     for (var i = 0; i < this.parts.length; i++) {
       var p = this.parts[i];
+      if (p.kind === 'ghost') {
+        var g = p.life / p.max;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.scale(1 + g * 0.6, 1 - g * 0.85);
+        ctx.translate(-p.x, -p.y);
+        DD.KINDS[p.item.type].draw(ctx, p.item);
+        ctx.restore();
+        continue;
+      }
       if (p.kind !== 'dust') continue;
       var k = p.life / p.max;
       ctx.globalAlpha = (1 - k) * 0.9;
@@ -130,8 +155,14 @@
   Effects.prototype.drawFront = function (ctx) {
     for (var i = 0; i < this.parts.length; i++) {
       var p = this.parts[i];
-      if (p.kind === 'dust') continue;
+      if (p.kind === 'dust' || p.kind === 'ghost') continue;
       var k = p.life / p.max;
+      if (p.kind === 'ring') {
+        ctx.globalAlpha = 1 - k;
+        ctx.beginPath(); D.ellipse(ctx, p.x, p.y, p.r * (0.3 + k), p.r * (0.3 + k) * 0.8, 0);
+        ctx.lineWidth = 6 * (1 - k) + 1; ctx.strokeStyle = COL.white; ctx.stroke();
+        continue;
+      }
       ctx.globalAlpha = 1 - k * k;
       if (p.kind === 'star') D.star(ctx, p.x, p.y, p.r, p.rot, p.color, 2.5);
       else D.oval(ctx, p.x, p.y, p.r * 0.6, p.r * 0.6, 0, p.color, 2.5);
