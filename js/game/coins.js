@@ -1,6 +1,6 @@
 /*
  * DUST DASH コイン（段階2：J）
- * ・コインはジャンプの軌道どおりに並べる。コインをたどって跳ぶと、獲物の上にちょうど降りられる
+ * ・コインの並べ方は course.js（お手本の走りの道すじに、同じ間隔で並べる）
  * ・速いほど1枚の価値が上がる（×2、×3、×4）
  */
 (function (global) {
@@ -49,21 +49,4 @@
     return v;
   };
 
-  /**
-   * ジャンプの軌道を計算して、点の列を返す（ゲーム内の座標）。
-   * o = { x, y（踏み切りの足元）, vy（上向きはマイナス）, v（横の速さ）, until（秒）,
-   *       second（この秒数で2段ジャンプ）, stopY（この高さまで落ちたら終わり）}
-   */
-  DD.jumpPath = function (o) {
-    var pts = [], x = o.x, y = o.y, vy = o.vy, t = 0, dt = 1 / 120, next = CFG.COIN_STEP * 0.6;
-    var doubled = false;
-    while (t < o.until) {
-      if (o.second && !doubled && t >= o.second) { vy = -CFG.DOUBLE_JUMP_V; doubled = true; }
-      vy += (vy < 0 ? CFG.GRAVITY_UP : CFG.GRAVITY_DOWN) * dt;
-      y += vy * dt; x += o.v * dt; t += dt;
-      if (o.stopY !== undefined && vy > 0 && y >= o.stopY) break;
-      if (t >= next) { pts.push({ x: x, y: y }); next += CFG.COIN_STEP; }
-    }
-    return pts;
-  };
 })(window);

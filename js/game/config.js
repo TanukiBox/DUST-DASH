@@ -23,8 +23,8 @@
     BOOST_TAU: 2.6,           // 食べて上がった速さが元に戻るまでの目安（秒）
     SPEED_FOLLOW: 2.2,        // ぶつかって落ちた速さが戻る早さ
     STAMINA_MAX: 100,
-    STAMINA_DRAIN: 1.8,       // スタミナが毎秒減る量（はじめ）
-    STAMINA_DRAIN_GROW: 0.012,// 1秒ごとに減る量がこれだけ増える（60秒で約1.4倍、120秒で約1.8倍、240秒で約2.6倍）
+    STAMINA_DRAIN: 2.0,       // スタミナが毎秒減る量（はじめ）
+    STAMINA_DRAIN_GROW: 0.02, // 1秒ごとに減る量がこれだけ増える（60秒で1.6倍、120秒で2.2倍、180秒で2.8倍）
     FATIGUE_AT: 25,           // スタミナがこれ以下になると足が遅くなりはじめる
     FATIGUE_MIN: 0.5,         // スタミナが0に近いときの速さの割合
     EXHAUST_DECEL: 45,        // バテてから止まるまでの減速（km/h／秒）
@@ -47,7 +47,7 @@
       // gain = 加速（km/h）、stamina = スタミナ回復
       bug:    { gain: 5,  stamina: 5, w: 34, h: 26 },                              // 虫：少し
       lizard: { gain: 10, stamina: 8, w: 60, h: 22, vx: 70 },                        // トカゲ：中くらい（自分も右へ走る）
-      snake:  { gain: 20, stamina: 15, w: 66, h: 44, hitLoss: 14, hitStamina: 8 }    // ヘビ：大きく／横から当たると減る
+      snake:  { gain: 20, stamina: 15, w: 66, h: 44, hitLoss: 14, hitStamina: 12 }    // ヘビ：大きく／横から当たると減る
     },
     STOMP_MARGIN_X: 26,       // 踏みつけ判定を横に広げる量（大きいほど簡単）
     ASSIST: true,             // 踏みつけアシスト（落ちる途中で獲物の真上に吸い寄せる）
@@ -64,10 +64,10 @@
     HURT_INVULN: 1.0,         // 当たった後の無敵時間（秒）
 
     // ---- コイン（段階2：J）----
-    COIN_STEP: 0.075,         // 軌道に置くコインの間隔（秒換算）
+    COIN_GAP_X: 46,           // 道すじに並べるコインの間隔（ゲーム内の長さ。いつも同じ間隔）
     COIN_RADIUS: 40,          // コインを拾える近さ
     COIN_MULT: [[0, 1], [80, 2], [120, 3], [160, 4]], // この速さ（km/h）以上で1枚の価値が何倍か
-    COIN_ROW_CHANCE: 0.45,    // 出現のすきまに地面のコインを置く確率
+    COIN_ROW_CHANCE: 0.45,    // 跳ぶ前の助走や、並びのすきまに地面のコインを置く確率
     DIST_COIN_PER: 10,        // この距離（m）ごとにコイン1枚のボーナス
 
     // ---- フィーバー ----
@@ -86,10 +86,10 @@
       giantCactus: { w: 56, h: 205 },            // 2段ジャンプでよける
       vulture:     { w: 72, h: 78, lift: 90, vx: 120 } // lift = 地面から体の下までの高さ（走っていればくぐれる）
     },
-    OBSTACLE_LOSS: 15,        // サボテン・岩に当たったときの減速（km/h。すぐ戻る）
-    OBSTACLE_STAMINA: 8,      // 同、スタミナが減る量
+    OBSTACLE_LOSS: 20,        // サボテン・岩に当たったときの減速（km/h。すぐ戻る）
+    OBSTACLE_STAMINA: 15,     // 同、スタミナが減る量
     HOLE_LOSS: 25,            // 穴に落ちたときの減速（km/h）
-    HOLE_STAMINA: 14,         // 同、スタミナが減る量
+    HOLE_STAMINA: 22,         // 同、スタミナが減る量
     HOLE_WIDTH: 0.3,          // 穴の幅（秒換算。速いほど広くなる）
     WIDE_HOLE_WIDTH: 0.85,    // 大穴の幅（1回のジャンプでは届かない）
     HOLE_RECOVER_V: 1250,     // 穴から飛び出す勢い
