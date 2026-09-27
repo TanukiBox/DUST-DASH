@@ -552,8 +552,12 @@
     var cam = this.cam, W = cam.W, H = cam.H;
     var sh = this.fx.shakeOffset();
 
+    // 空・遠景（距離で時間帯が変わる）
+    var sky = DD.skyAt(this.meters());
+    this.sky = sky;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    DD.drawSky(ctx, W, H, cam.groundY - cam.y * cam.scale);
+    DD.drawSky(ctx, W, H, cam.groundY - cam.y * cam.scale, sky, this.time);
+    DD.drawBackdrop(ctx, cam, sky);
 
     cam.apply(ctx, dpr, sh.x, sh.y);
     DD.drawGround(ctx, cam, this.holes);
@@ -562,6 +566,10 @@
       var hl = this.holes[i];
       if (hl.x1 > bnd.left && hl.x0 < bnd.right) DD.drawHole(ctx, hl, bnd.bottom);
     }
+    // 地面に時間帯の色（キャラクターには かけない：夜でも見やすく）
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    DD.drawGroundTint(ctx, cam, sky);
+    cam.apply(ctx, dpr, sh.x, sh.y);
 
     // 影
     var p = this.player, vs = this.visScale;

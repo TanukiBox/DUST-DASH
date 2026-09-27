@@ -58,24 +58,7 @@
 
   DD.Camera = Camera;
 
-  // ------------------------------------------------------------
-  // 背景（空）：画面の座標で描く
-  // ------------------------------------------------------------
-  DD.drawSky = function (ctx, W, H, groundY) {
-    var g = ctx.createLinearGradient(0, 0, 0, groundY);
-    g.addColorStop(0, '#9fd9ea');
-    g.addColorStop(0.65, '#d9f0ec');
-    g.addColorStop(1, COL.skyLow);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-    // お日さま
-    var r = Math.min(W, H) * 0.07;
-    ctx.beginPath(); D.ellipse(ctx, W * 0.8, groundY * 0.28, r * 1.6, r * 1.6, 0);
-    ctx.fillStyle = 'rgba(255, 236, 170, 0.45)'; ctx.fill();
-    ctx.beginPath(); D.ellipse(ctx, W * 0.8, groundY * 0.28, r, r, 0);
-    ctx.fillStyle = COL.sun; ctx.fill();
-    ctx.lineWidth = 4; ctx.strokeStyle = '#f0a94a'; ctx.stroke();
-  };
+  // 空と遠景は background.js
 
   // ------------------------------------------------------------
   // 地面：ゲーム内の座標で描く

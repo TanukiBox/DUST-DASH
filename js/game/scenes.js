@@ -27,7 +27,7 @@
     enter: function (app) {
       this.demo = new DD.Game({ demo: true });
       this.t = 0;
-      app.input.setButtons([]);
+      app.setButtons([]);
     },
     update: function (app, dt) {
       this.t += dt;
@@ -64,7 +64,7 @@
       ctx.scale(pulse, pulse);
       D.text(ctx, T('tapToStart'), 0, 0, { size: Math.min(ui.w * 0.08, 36), fill: COL.white, maxW: ui.w - 40 });
       ctx.restore();
-      if (!app.input.isTouch) {
+      if (app.input.finePointer && !app.input.isTouch) {
         D.text(ctx, T('keyHint'), cx, startY + 38, { size: 18, fill: COL.cream, lw: 4 });
       }
 
@@ -72,6 +72,7 @@
     },
     press: function (app) {
       if (this.t < 0.3) return;
+      app.sfx.play('ui');
       app.go('play');
     }
   };
@@ -87,7 +88,7 @@
       this.hint = { jumped: false, firstEatT: null };
       this.comboPop = 0;
       this.banner = null;
-      app.input.setButtons([]);
+      app.setButtons([]);
     },
     update: function (app, dt) {
       var g = this.game;
@@ -97,6 +98,7 @@
         if (e === 'jump') this.hint.jumped = true;
         if (e === 'combo') this.comboPop = 1;
         if (e === 'milestone') this.banner = { n: g.milestone, t: 0 };
+        if (e !== 'combo') app.sfx.play(e, g.combo);
       }
       g.events.length = 0;
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
@@ -196,7 +198,8 @@
     }
 
     var m = g.meters();
-    D.text(ctx, m + ' m', ui.w - ui.safeRight - 18, y + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
+    var mr = app.muteRect();
+    D.text(ctx, m + ' m', mr.x - 14, y + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
   }
 
   // ------------------------------------------------------------
@@ -210,10 +213,11 @@
       this.pressed = false;
       var self = this;
       this.btn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.retry(app); } };
-      app.input.setButtons([this.btn]);
+      app.setButtons([this.btn]);
     },
     retry: function (app) {
       if (this.t < 0.45) return; // 押しっぱなしの誤タップ防止
+      app.sfx.play('ui');
       app.go('play');
     },
     update: function (app, dt) {

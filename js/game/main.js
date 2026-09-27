@@ -18,6 +18,10 @@
     input: TB.createInput(canvas),
     scene: null,
     sceneName: '',
+    /** 画面のボタンを登録（ミュートボタンはいつも一番手前） */
+    setButtons: function (list) {
+      app.input.setButtons((list || []).concat([muteBtn]));
+    },
     go: function (name, arg) {
       app.sceneName = name;
       app.scene = DD.Scenes[name];
@@ -25,6 +29,46 @@
     }
   };
   document.documentElement.lang = app.i18n.lang;
+  app.sound = TB.createSound(app.store);
+  app.sfx = DD.createSfx(app.sound);
+
+  // ---- ミュートボタン（右上）----
+  var muteBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+    app.sound.toggle();
+    app.sfx.play('ui');
+  } };
+  app.muteBtn = muteBtn;
+  /** ミュートボタンの位置（UI座標） */
+  app.muteRect = function () {
+    var ui = app.ui, size = 46;
+    return { x: ui.w - ui.safeRight - 14 - size, y: ui.safeTop + 12, w: size, h: size };
+  };
+  function drawMute() {
+    var ui = app.ui, r = app.muteRect(), D = DD.draw, COL = DD.COL;
+    ctx.setTransform(app.dpr * ui.u, 0, 0, app.dpr * ui.u, 0, 0);
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    D.oval(ctx, cx, cy + 3, r.w / 2, r.h / 2, 0, COL.sandDeep, 4);
+    D.oval(ctx, cx, cy, r.w / 2, r.h / 2, 0, COL.cream, 4);
+    // スピーカー
+    D.shape(ctx, function (c) {
+      c.moveTo(cx - 12, cy - 5); c.lineTo(cx - 6, cy - 5); c.lineTo(cx + 2, cy - 12);
+      c.lineTo(cx + 2, cy + 12); c.lineTo(cx - 6, cy + 5); c.lineTo(cx - 12, cy + 5); c.closePath();
+    }, COL.line, 0);
+    ctx.lineCap = 'round'; ctx.lineWidth = 3.2;
+    if (app.sound.muted) {
+      ctx.strokeStyle = COL.bad;
+      ctx.beginPath(); ctx.moveTo(cx + 6, cy - 6); ctx.lineTo(cx + 14, cy + 6); ctx.moveTo(cx + 14, cy - 6); ctx.lineTo(cx + 6, cy + 6); ctx.stroke();
+    } else {
+      ctx.strokeStyle = COL.line;
+      ctx.beginPath(); ctx.arc(cx + 3, cy, 6, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 3, cy, 11.5, -0.9, 0.9); ctx.stroke();
+    }
+    // タップ判定（画面の座標）。少し大きめに
+    muteBtn.x = (r.x - 6) * ui.u; muteBtn.y = (r.y - 6) * ui.u;
+    muteBtn.w = (r.w + 12) * ui.u; muteBtn.h = (r.h + 12) * ui.u;
+  }
+  // PC は M キーでもミュート
+  global.addEventListener('keydown', function (e) { if (e.code === 'KeyM' && !e.repeat) muteBtn.onPress(); });
 
   function resize() {
     var W = canvas.clientWidth || global.innerWidth;
@@ -70,6 +114,7 @@
     if (canvas.clientWidth !== app.W || canvas.clientHeight !== app.H) resize();
     app.scene.update(app, dt);
     app.scene.render(app, ctx);
+    drawMute();
     global.requestAnimationFrame(frame);
   }
   document.addEventListener('visibilitychange', function () { last = 0; });

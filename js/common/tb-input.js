@@ -21,6 +21,8 @@
       /** 押している間 true（長押し判定などに使える） */
       down: false,
       isTouch: false,
+      /** マウスなどが使える環境か（キーボード操作の案内を出すかどうかに使う） */
+      finePointer: !!(global.matchMedia && global.matchMedia('(any-pointer: fine)').matches),
       setButtons: function (list) { buttons = list || []; },
       hitButton: function (x, y) {
         for (var i = buttons.length - 1; i >= 0; i--) {

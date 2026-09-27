@@ -1,0 +1,60 @@
+/*
+ * DUST DASH 効果音のレシピ
+ * ゲームの出来事（'jump' など）の名前で鳴らす。音はすべてその場で作る。
+ */
+(function (global) {
+  'use strict';
+  var DD = global.DD = global.DD || {};
+
+  DD.createSfx = function (sound) {
+    var S = sound;
+    var recipes = {
+      jump: function () { S.tone({ type: 'square', f0: 330, f1: 700, dur: 0.12, vol: 0.09 }); },
+      double: function () {
+        S.tone({ type: 'square', f0: 520, f1: 1100, dur: 0.12, vol: 0.08 });
+        S.tone({ type: 'sine', f0: 1500, f1: 2200, dur: 0.1, vol: 0.05, delay: 0.05 });
+      },
+      land: function () { S.noise({ f0: 500, f1: 200, dur: 0.07, vol: 0.06, q: 0.8 }); },
+      // 食べる：コンボが続くほど音が高くなる
+      eat: function (combo) {
+        var k = Math.pow(2, Math.min(combo - 1, 12) / 12);
+        S.tone({ type: 'sine', f0: 520 * k, f1: 1250 * k, dur: 0.09, vol: 0.2 });
+        S.tone({ type: 'triangle', f0: 1040 * k, dur: 0.07, vol: 0.07, delay: 0.05 });
+      },
+      eatBig: function () {
+        S.tone({ type: 'sine', f0: 160, f1: 620, dur: 0.28, vol: 0.24 });
+        S.tone({ type: 'triangle', f0: 660, dur: 0.1, vol: 0.1, delay: 0.1 });
+        S.tone({ type: 'triangle', f0: 880, dur: 0.1, vol: 0.1, delay: 0.17 });
+        S.tone({ type: 'triangle', f0: 1320, dur: 0.16, vol: 0.1, delay: 0.24 });
+      },
+      hurt: function () {
+        S.tone({ type: 'square', f0: 240, f1: 80, dur: 0.2, vol: 0.12 });
+        S.noise({ f0: 900, f1: 200, dur: 0.15, vol: 0.14 });
+      },
+      fall: function () { S.tone({ type: 'sine', f0: 900, f1: 160, dur: 0.5, vol: 0.16 }); },
+      // タカの鳴き声「ピーーィ」：高い音が少しふるえながら下がる
+      hawkCry: function () {
+        S.tone({ type: 'sawtooth', f0: 2300, f1: 1500, dur: 0.75, vol: 0.07, attack: 0.04,
+          vibrato: { rate: 28, depth: 70 }, filter: { type: 'bandpass', f: 2200, q: 1.5 } });
+        S.noise({ f0: 3000, f1: 1800, dur: 0.6, vol: 0.03, q: 3, attack: 0.04 });
+      },
+      hawkDive: function () {
+        recipes.hawkCry();
+        S.noise({ f0: 300, f1: 2400, dur: 0.6, vol: 0.12, q: 1.2, attack: 0.2 });
+      },
+      hawkCatch: function () {
+        S.noise({ f0: 700, f1: 150, dur: 0.25, vol: 0.2 });
+        S.tone({ type: 'sine', f0: 200, f1: 60, dur: 0.25, vol: 0.2 });
+      },
+      milestone: function () {
+        [523, 659, 784, 1047].forEach(function (f, i) {
+          S.tone({ type: 'triangle', f0: f, dur: 0.18, vol: 0.1, delay: i * 0.07 });
+        });
+      },
+      ui: function () { S.tone({ type: 'sine', f0: 700, f1: 1000, dur: 0.06, vol: 0.12 }); }
+    };
+    return {
+      play: function (name, arg) { if (recipes[name]) recipes[name](arg); }
+    };
+  };
+})(window);
