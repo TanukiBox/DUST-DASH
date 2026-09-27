@@ -20,14 +20,64 @@
     return { x: r.x * u, y: r.y * u, w: r.w * u, h: r.h * u };
   }
 
+  /** ボタンのタップ判定を、描いた場所に合わせる */
+  function place(app, btn, r) {
+    var c = toCss(app, r);
+    btn.x = c.x; btn.y = c.y; btn.w = c.w; btn.h = c.h + 6;
+  }
+
+  /** 持っているコイン（左上） */
+  function drawWallet(app, ctx, x, y, n) {
+    DD.drawCoinIcon(ctx, x + 14, y, 14);
+    D.text(ctx, String(n), x + 34, y + 1, { size: 26, fill: COL.good, align: 'left', lw: 7 });
+  }
+
+  /** 強化のアイコン */
+  function drawUpgradeIcon(ctx, id, x, y, r) {
+    D.oval(ctx, x, y, r, r, 0, COL.cream, 4);
+    ctx.save();
+    ctx.translate(x, y);
+    var k = r / 24;
+    ctx.scale(k, k);
+    if (id === 'stamina') {
+      D.shape(ctx, function (c) { c.moveTo(4, -15); c.lineTo(-9, 3); c.lineTo(-1, 3); c.lineTo(-5, 15); c.lineTo(9, -4); c.lineTo(1, -4); c.closePath(); }, COL.good, 3);
+    } else if (id === 'dash') {
+      D.shape(ctx, function (c) { c.moveTo(-12, -10); c.lineTo(-2, 0); c.lineTo(-12, 10); c.lineTo(-6, 10); c.lineTo(4, 0); c.lineTo(-6, -10); c.closePath(); }, COL.accent, 3);
+      D.shape(ctx, function (c) { c.moveTo(0, -10); c.lineTo(10, 0); c.lineTo(0, 10); c.lineTo(6, 10); c.lineTo(16, 0); c.lineTo(6, -10); c.closePath(); }, COL.accent, 3);
+    } else if (id === 'ukemi') {
+      D.shape(ctx, function (c) { c.moveTo(0, -15); c.quadraticCurveTo(10, -10, 13, -11); c.quadraticCurveTo(13, 8, 0, 16); c.quadraticCurveTo(-13, 8, -13, -11); c.quadraticCurveTo(-10, -10, 0, -15); c.closePath(); }, '#7fb8e8', 3);
+    } else if (id === 'glutton') {
+      ctx.scale(0.62, 0.62);
+      DD.KINDS.bug.draw(ctx, { x: 4, y: 14, t: 0, air: false });
+    } else {
+      DD.drawCoinIcon(ctx, 0, 0, 13);
+    }
+    ctx.restore();
+  }
+
+  /** 強化の効き目を、今の値としてゲームに渡す形にする */
+  function upgradesFor(app) {
+    var pr = app.progress, out = {};
+    for (var i = 0; i < DD.UPGRADES.length; i++) out[DD.UPGRADES[i].id] = pr.effect(DD.UPGRADES[i].id);
+    return out;
+  }
+
+  /** 買える強化があるか（ボタンに印を出す） */
+  function canBuyAny(app) {
+    for (var i = 0; i < DD.UPGRADES.length; i++) if (app.progress.canBuy(DD.UPGRADES[i].id)) return true;
+    return false;
+  }
+
   // ------------------------------------------------------------
   // タイトル
   // ------------------------------------------------------------
   var Title = {
     enter: function (app) {
-      this.demo = new DD.Game({ demo: true });
+      this.demo = app.demoGame = app.demoGame || new DD.Game({ demo: true });
       this.t = 0;
-      app.setButtons([]);
+      var self = this;
+      this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('shop', { from: 'title' }); } };
+      app.setButtons([this.shopBtn]);
     },
     update: function (app, dt) {
       this.t += dt;
@@ -68,6 +118,26 @@
         D.text(ctx, T('keyHint'), cx, startY + 38, { size: 18, fill: COL.cream, lw: 4 });
       }
 
+      // ベスト記録
+      var best = app.progress.best;
+      if (best.speed > 0) {
+        D.text(ctx, T('best') + ' ' + best.speed + ' km/h', cx, ty + size * 0.85 + 38, { size: 20, fill: COL.white, lw: 6 });
+      }
+
+      // 持っているコイン（左上）
+      drawWallet(app, ctx, ui.safeLeft + 14, ui.safeTop + 35, app.progress.coins);
+
+      // 強化ボタン（下）
+      var bw = Math.min(ui.w * 0.5, 220), bh = 58;
+      var b = { x: cx - bw / 2, y: ui.h - ui.safeBottom - 60 - bh, w: bw, h: bh };
+      D.button(ctx, b, T('shop'), { size: 26, fill: '#6cc06b', shade: '#3f8a45' });
+      if (canBuyAny(app)) {
+        var bounce = Math.abs(Math.sin(this.t * 4)) * 4;
+        D.oval(ctx, b.x + b.w - 8, b.y + 4 - bounce, 13, 13, 0, COL.bad, 3);
+        D.text(ctx, '!', b.x + b.w - 8, b.y + 5 - bounce, { size: 18, fill: COL.white, lw: 0 });
+      }
+      place(app, this.shopBtn, b);
+
       D.text(ctx, T('credit'), cx, ui.h - ui.safeBottom - 22, { size: 18, fill: COL.cream, lw: 4 });
     },
     press: function (app) {
@@ -83,24 +153,32 @@
   var Play = {
     enter: function (app) {
       var self = this;
-      this.game = new DD.Game();
+      this.game = new DD.Game({ up: upgradesFor(app) });
       this.game.onOver = function (res) { app.go('result', { game: self.game, result: res }); };
       this.hint = { jumped: false, firstEatT: null };
       this.comboPop = 0;
       this.banner = null;
+      this.feverBanner = this.game.fever > 0 ? { text: T('startDash'), t: 0 } : null;
       app.setButtons([]);
     },
     update: function (app, dt) {
       var g = this.game;
       g.update(dt, app.W, app.H);
+      var played = {};
       for (var i = 0; i < g.events.length; i++) {
         var e = g.events[i];
         if (e === 'jump') this.hint.jumped = true;
         if (e === 'combo') this.comboPop = 1;
         if (e === 'milestone') this.banner = { n: g.milestone, t: 0 };
-        if (e !== 'combo') app.sfx.play(e, g.combo);
+        if (e === 'fever') this.feverBanner = { text: T('fever'), t: 0 };
+        if (e === 'combo' || played[e]) continue; // 同じ音を1フレームに何度も鳴らさない
+        played[e] = true;
+        app.sfx.play(e, e === 'coin' ? g.coinSfx : g.combo);
       }
       g.events.length = 0;
+      if (this.feverBanner) { this.feverBanner.t += dt; if (this.feverBanner.t > 1.4) this.feverBanner = null; }
+      if (!app.seenHints) app.seenHints = {};
+      if (!app.seenHints.fever && g.feverGauge > 45) { app.seenHints.fever = true; this.hint.special = { text: T('hintFever'), until: g.time + 2.5 }; }
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
       if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt * 5);
       if (this.banner) { this.banner.t += dt; if (this.banner.t > 2) this.banner = null; }
@@ -113,6 +191,23 @@
       drawHud(app, ctx, g, this.comboPop);
       this.drawHints(app, ctx, g);
       this.drawBanner(app, ctx);
+      this.drawFeverBanner(app, ctx);
+    },
+    /** 「フィーバー！」：虹色でぽよんと出る */
+    drawFeverBanner: function (app, ctx) {
+      var b = this.feverBanner;
+      if (!b) return;
+      var ui = app.ui;
+      var k = b.t < 0.25 ? U.easeOutBack(b.t / 0.25) : 1;
+      var a = b.t > 1.1 ? 1 - (b.t - 1.1) / 0.3 : 1;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.translate(ui.w / 2, ui.safeTop + 230);
+      ctx.scale(k * (1 + Math.sin(b.t * 20) * 0.03), k);
+      ctx.rotate(-0.06);
+      var hue = (b.t * 400) % 360;
+      D.text(ctx, b.text, 0, 0, { size: 56, fill: 'hsl(' + hue.toFixed(0) + ', 95%, 62%)', maxW: ui.w - 30 });
+      ctx.restore();
     },
     /** 「○m 突破！」：先に進んだことと、手ごわくなることを知らせる */
     drawBanner: function (app, ctx) {
@@ -151,7 +246,7 @@
     },
     drawHints: function (app, ctx, g) {
       var ui = app.ui, h = this.hint, text = null;
-      if (this.banner) return; // 「○m 突破！」と重ならないように
+      if (this.banner || this.feverBanner) return; // 「○m 突破！」と重ならないように
       if (h.special && g.time < h.special.until) text = h.special.text;
       else if (!h.jumped && g.time < 6) text = T('hintJump');
       else if (g.eaten === 0 && g.time < 12) text = T('hintStomp');
@@ -210,8 +305,26 @@
     }, COL.good, 2.5);
     ctx.restore();
 
+    // ---- フィーバーゲージ（スタミナの下の細いゲージ）----
+    var fy = by + bh + 8, fh = 11;
+    D.shape(ctx, function (c) { D.roundRect(c, bx, fy, bw, fh, fh / 2); }, '#6b4a33', 3);
+    var fk = g.fever > 0 ? g.fever / (g.feverKind === 'dash' ? g.up.dash : DD.CFG.FEVER_TIME) : g.feverGauge / DD.CFG.FEVER_MAX;
+    if (fk > 0.001) {
+      ctx.save();
+      ctx.beginPath(); D.roundRect(ctx, bx + 2, fy + 2, Math.max(fh, (bw - 4) * fk), fh - 4, (fh - 4) / 2); ctx.clip();
+      if (g.fever > 0 || fk > 0.95) {
+        var gr = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+        for (var hi = 0; hi <= 6; hi++) gr.addColorStop(hi / 6, 'hsl(' + ((hi * 60 + g.time * 300) % 360).toFixed(0) + ', 90%, 62%)');
+        ctx.fillStyle = gr;
+      } else {
+        ctx.fillStyle = '#ff9ec4';
+      }
+      ctx.fillRect(bx, fy, bw, fh);
+      ctx.restore();
+    }
+
     // ---- 速さ ----
-    var sy = by + bh + 12;
+    var sy = fy + fh + 6;
     var v = Math.round(g.speed);
     var color = COL.white;
     if (v >= 150) color = COL.accent;
@@ -233,8 +346,20 @@
       ctx.restore();
     }
 
-    // ---- 距離（右）----
-    D.text(ctx, g.meters() + ' m', ui.w - ui.safeRight - 18, sy + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
+    // ---- 距離とコイン（右）----
+    var rx = ui.w - ui.safeRight - 18;
+    D.text(ctx, g.meters() + ' m', rx, sy + 26, { size: 28, fill: COL.white, align: 'right', lw: 7 });
+    var cn = String(Math.round(g.coinsPicked));
+    var cw = D.measure(ctx, cn, 26);
+    var cp = 1 + g.coinPop * 0.25;
+    ctx.save();
+    ctx.translate(rx - cw - 18, sy + 64); ctx.scale(cp, cp);
+    DD.drawCoinIcon(ctx, 0, 0, 12);
+    ctx.restore();
+    D.text(ctx, cn, rx, sy + 65, { size: 26, fill: COL.good, align: 'right', lw: 7 });
+    // 速いほどコインの価値が上がる
+    var mul = DD.coinValue(g.speed) * (g.fever > 0 ? 2 : 1);
+    if (mul > 1) D.text(ctx, '×' + mul, rx, sy + 94, { size: 22, fill: COL.accent, align: 'right', lw: 6 });
   }
 
   // ------------------------------------------------------------
@@ -245,10 +370,15 @@
       this.game = arg.game;
       this.res = arg.result;
       this.t = 0;
-      this.pressed = false;
+      // コインと記録を保存（L セーブ）
+      this.rec = app.progress.finishRun(this.res);
       var self = this;
       this.btn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.retry(app); } };
-      app.setButtons([this.btn]);
+      this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+        if (self.t < 0.45) return;
+        app.sfx.play('ui'); app.go('shop', { from: 'result' });
+      } };
+      app.setButtons([this.btn, this.shopBtn]);
     },
     retry: function (app) {
       if (this.t < 0.45) return; // 押しっぱなしの誤タップ防止
@@ -268,11 +398,18 @@
       ctx.fillStyle = 'rgba(74, 45, 26, ' + (U.clamp(this.t / 0.3, 0, 1) * 0.45).toFixed(3) + ')';
       ctx.fillRect(0, 0, ui.w, ui.h);
 
-      var pw = Math.min(ui.w - 36, 380), ph = 312;
+      var pw = Math.min(ui.w - 36, 380), ph = 392;
       var btnH = 72, gap = 26;
       var total = ph + gap + btnH;
       var px = (ui.w - pw) / 2;
       var py = U.clamp((ui.h - total) / 2, ui.safeTop + 40, ui.h);
+      // 画面が低いとき（スマホ横など）は全体を縮める
+      var fit = Math.min(1, (ui.h - ui.safeTop - ui.safeBottom - 40) / (total + 40));
+      ctx.save();
+      ctx.translate(ui.w / 2, ui.safeTop + 20);
+      ctx.scale(fit, fit);
+      ctx.translate(-ui.w / 2, -(ui.safeTop + 20));
+      if (fit < 1) py = ui.safeTop + 50;
       var k = U.clamp(this.t / 0.4, 0, 1);
       var s = U.easeOutBack(k);
 
@@ -300,6 +437,15 @@
       var startX = cx - (numW + 10 + unitW) / 2;
       D.text(ctx, String(count), startX, py + 136, { size: big, fill: COL.accent, align: 'left', lw: big * 0.16 });
       D.text(ctx, 'km/h', startX + numW + 10, py + 160, { size: 30, fill: COL.ink, align: 'left', lw: 0 });
+      if (this.rec.speed && this.t > 0.9) {
+        // 新記録のはんこ
+        var ns = U.easeOutBack(U.clamp((this.t - 0.9) / 0.3, 0, 1));
+        ctx.save();
+        ctx.translate(px + pw - 62, py + 78); ctx.rotate(0.25); ctx.scale(ns, ns);
+        D.shape(ctx, function (c) { D.roundRect(c, -52, -17, 104, 34, 12); }, COL.bad, 4);
+        D.text(ctx, T('newRecord'), 0, 1, { size: 18, fill: COL.white, lw: 0, maxW: 94 });
+        ctx.restore();
+      }
 
       // 距離・ヘビ・最大コンボ
       var rowY = py + 240, colW = pw / 3;
@@ -324,20 +470,46 @@
       ctx.moveTo(px + colW, rowY - 34); ctx.lineTo(px + colW, rowY + 38);
       ctx.moveTo(px + colW * 2, rowY - 34); ctx.lineTo(px + colW * 2, rowY + 38);
       ctx.stroke();
+
+      // もらったコイン（数え上げ）
+      var coinY = py + 330;
+      ctx.strokeStyle = 'rgba(74, 45, 26, 0.2)';
+      ctx.beginPath(); ctx.moveTo(px + 24, coinY - 44); ctx.lineTo(px + pw - 24, coinY - 44); ctx.stroke();
+      var ck = U.clamp((this.t - 0.8) / 0.8, 0, 1);
+      var got = Math.round(res.coins * ck);
+      DD.drawCoinIcon(ctx, px + 40, coinY - 6, 16);
+      D.text(ctx, '+' + got, px + 64, coinY - 5, { size: 34, fill: '#e8a326', align: 'left', lw: 0 });
+      var detail = T('picked') + ' ' + res.coinsPicked + '  ' + T('distBonus') + ' ' + res.coinsDist;
+      if (this.game.up.luck > 1) detail += '  ' + T('luckBonus') + ' ×' + this.game.up.luck.toFixed(2);
+      D.text(ctx, detail, px + pw - 22, coinY - 5, { size: 14, fill: COL.sandDeep, lw: 0, align: 'right', maxW: pw * 0.5 });
+      D.text(ctx, T('coinsEarned') + ' ' + app.progress.coins, px + pw - 22, coinY + 17, { size: 14, fill: COL.sandDeep, lw: 0, align: 'right' });
       ctx.restore();
 
-      // もう一度ボタン
-      var bw = Math.min(pw * 0.8, 280);
-      var b = { x: (ui.w - bw) / 2, y: py + ph + gap, w: bw, h: btnH };
+      // もう一度ボタン＋強化ボタン
+      var gapB = 12, bw2 = Math.min(pw * 0.36, 140), bw = Math.min(pw - bw2 - gapB, 230);
+      var bx0 = (ui.w - (bw + gapB + bw2)) / 2;
+      var b = { x: bx0, y: py + ph + gap, w: bw, h: btnH };
+      var b2 = { x: bx0 + bw + gapB, y: py + ph + gap, w: bw2, h: btnH };
       var bk = U.clamp((this.t - 0.3) / 0.3, 0, 1);
       if (bk > 0) {
         ctx.save();
         ctx.globalAlpha = bk;
-        D.button(ctx, b, T('retry'), { size: 32 });
+        D.button(ctx, b, T('retry'), { size: 30 });
+        D.button(ctx, b2, T('shop'), { size: 22, fill: '#6cc06b', shade: '#3f8a45' });
+        if (canBuyAny(app)) {
+          D.oval(ctx, b2.x + b2.w - 6, b2.y + 4, 12, 12, 0, COL.bad, 3);
+          D.text(ctx, '!', b2.x + b2.w - 6, b2.y + 5, { size: 16, fill: COL.white, lw: 0 });
+        }
         ctx.restore();
       }
-      var css = toCss(app, b);
-      this.btn.x = css.x; this.btn.y = css.y; this.btn.w = css.w; this.btn.h = css.h + 6;
+      ctx.restore(); // fit
+      // タップ判定（縮めた分も計算に入れる）
+      var map = function (r) {
+        var cx0 = ui.w / 2, cy0 = ui.safeTop + 20;
+        return { x: cx0 + (r.x - cx0) * fit, y: cy0 + (r.y - cy0) * fit, w: r.w * fit, h: r.h * fit };
+      };
+      place(app, this.btn, map(b));
+      place(app, this.shopBtn, map(b2));
     },
     press: function (app, p) {
       // キーボード（スペース・Enter）でももう一度
@@ -345,5 +517,107 @@
     }
   };
 
-  DD.Scenes = { title: Title, play: Play, result: Result };
+  // ------------------------------------------------------------
+  // 強化（お店）
+  // ------------------------------------------------------------
+  var Shop = {
+    enter: function (app, arg) {
+      this.from = (arg && arg.from) || 'title';
+      this.demo = app.demoGame = app.demoGame || new DD.Game({ demo: true });
+      this.t = 0;
+      this.flash = {};
+      var self = this;
+      this.buyBtns = DD.UPGRADES.map(function (u) {
+        return { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+          if (app.progress.buy(u.id)) { app.sfx.play('buy'); self.flash[u.id] = 1; }
+          else app.sfx.play('hurt');
+        } };
+      });
+      this.backBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('title'); } };
+      this.startBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('play'); } };
+      app.setButtons(this.buyBtns.concat([this.backBtn, this.startBtn]));
+    },
+    update: function (app, dt) {
+      this.t += dt;
+      this.demo.update(dt, app.W, app.H);
+      for (var k in this.flash) this.flash[k] = Math.max(0, this.flash[k] - dt * 2.5);
+    },
+    render: function (app, ctx) {
+      this.demo.render(ctx, app.dpr);
+      uiSpace(ctx, app);
+      var ui = app.ui, pr = app.progress;
+      ctx.fillStyle = 'rgba(74, 45, 26, 0.45)';
+      ctx.fillRect(0, 0, ui.w, ui.h);
+
+      var pw = Math.min(ui.w - 28, 420), rowH = 92, head = 70, foot = 100;
+      var ph = head + rowH * DD.UPGRADES.length + 16;
+      var total = ph + foot;
+      var avail = ui.h - ui.safeTop - ui.safeBottom - 30;
+      var fit = Math.min(1, avail / total);
+      var px = (ui.w - pw) / 2, py = ui.safeTop + 40;
+      var cx0 = ui.w / 2, cy0 = ui.safeTop + 15;
+      ctx.save();
+      ctx.translate(cx0, cy0); ctx.scale(fit, fit); ctx.translate(-cx0, -cy0);
+
+      D.shape(ctx, function (c) { D.roundRect(c, px, py + 6, pw, ph, 28); }, COL.sandDeep, 5);
+      D.shape(ctx, function (c) { D.roundRect(c, px, py, pw, ph, 28); }, COL.cream, 5);
+      var rw = Math.min(pw * 0.6, 230), rh = 52;
+      D.shape(ctx, function (c) { D.roundRect(c, ui.w / 2 - rw / 2, py - rh / 2, rw, rh, 18); }, '#6cc06b', 5);
+      D.text(ctx, T('shop'), ui.w / 2, py + 1, { size: 28, fill: COL.white });
+      // 持っているコイン
+      DD.drawCoinIcon(ctx, px + pw / 2 - 40, py + 48, 13);
+      D.text(ctx, String(pr.coins), px + pw / 2 - 20, py + 49, { size: 26, fill: '#e8a326', align: 'left', lw: 0 });
+
+      var map = function (r) { return { x: cx0 + (r.x - cx0) * fit, y: cy0 + (r.y - cy0) * fit, w: r.w * fit, h: r.h * fit }; };
+      for (var i = 0; i < DD.UPGRADES.length; i++) {
+        var u = DD.UPGRADES[i], lv = pr.level(u.id), cost = pr.cost(u.id);
+        var ry = py + head + i * rowH;
+        if (i > 0) {
+          ctx.strokeStyle = 'rgba(74, 45, 26, 0.15)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(px + 18, ry); ctx.lineTo(px + pw - 18, ry); ctx.stroke();
+        }
+        var fl = this.flash[u.id] || 0;
+        if (fl > 0) {
+          ctx.fillStyle = 'rgba(255, 216, 74, ' + (fl * 0.5).toFixed(3) + ')';
+          ctx.fillRect(px + 6, ry + 2, pw - 12, rowH - 4);
+        }
+        drawUpgradeIcon(ctx, u.id, px + 40, ry + rowH / 2, 24 * (1 + fl * 0.2));
+        var bw = 96, bh = 50, bxx = px + pw - bw - 16;
+        var textW = bxx - (px + 74) - 8;
+        D.text(ctx, T('up_' + u.id), px + 74, ry + 24, { size: 21, fill: COL.ink, lw: 0, align: 'left', maxW: textW });
+        D.text(ctx, T('up_' + u.id + '_d'), px + 74, ry + 48, { size: 13, fill: COL.sandDeep, lw: 0, align: 'left', maxW: textW });
+        // レベルの玉
+        for (var l = 0; l < DD.UPGRADE_MAX; l++) {
+          D.oval(ctx, px + 82 + l * 20, ry + 70, 7, 7, 0, l < lv ? COL.good : '#e6d3b0', 2.5);
+        }
+        var b = { x: bxx, y: ry + (rowH - bh) / 2 - 3, w: bw, h: bh };
+        if (cost === null) {
+          D.button(ctx, b, T('max'), { size: 22, fill: '#b9a58a', shade: '#8a7760' });
+        } else {
+          var ok = pr.coins >= cost;
+          D.button(ctx, b, '', { fill: ok ? COL.accent : '#c9b89c', shade: ok ? '#c85e23' : '#9c8b70' });
+          DD.drawCoinIcon(ctx, b.x + 20, b.y + b.h * 0.53, 10);
+          D.text(ctx, String(cost), b.x + b.w / 2 + 12, b.y + b.h * 0.55, { size: 20, fill: COL.white, maxW: b.w - 40 });
+        }
+        place(app, this.buyBtns[i], map(b));
+      }
+
+      // もどる・スタート
+      var fy = py + ph + 22, gapB = 12;
+      var sbw = Math.min(pw * 0.58, 230), bbw = Math.min(pw - sbw - gapB, 150);
+      var bx0 = (ui.w - (sbw + gapB + bbw)) / 2;
+      var back = { x: bx0, y: fy, w: bbw, h: 64 };
+      var start = { x: bx0 + bbw + gapB, y: fy, w: sbw, h: 64 };
+      D.button(ctx, back, T('back'), { size: 22, fill: '#b9a58a', shade: '#8a7760' });
+      D.button(ctx, start, T('start'), { size: 28 });
+      ctx.restore();
+      place(app, this.backBtn, map(back));
+      place(app, this.startBtn, map(start));
+    },
+    press: function (app, p) {
+      if (p.x === null) { app.sfx.play('ui'); app.go('play'); } // スペースでスタート
+    }
+  };
+
+  DD.Scenes = { title: Title, play: Play, result: Result, shop: Shop };
 })(window);

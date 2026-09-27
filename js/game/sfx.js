@@ -52,6 +52,26 @@
         });
       },
       exhausted: function () { S.tone({ type: 'triangle', f0: 500, f1: 180, dur: 0.6, vol: 0.14 }); },
+      // コイン：拾うたびに2つの高さを交互に鳴らす（チャリン）
+      coin: function (n) {
+        var f = n % 2 ? 1568 : 1319;
+        S.tone({ type: 'square', f0: f, dur: 0.06, vol: 0.05 });
+        S.tone({ type: 'square', f0: f * 1.5, dur: 0.08, vol: 0.04, delay: 0.04 });
+      },
+      fever: function () {
+        [523, 659, 784, 1047, 1319].forEach(function (f, i) {
+          S.tone({ type: 'square', f0: f, dur: 0.12, vol: 0.07, delay: i * 0.05 });
+        });
+        S.noise({ f0: 400, f1: 3000, dur: 0.5, vol: 0.08 });
+      },
+      feverEnd: function () { S.tone({ type: 'triangle', f0: 900, f1: 400, dur: 0.3, vol: 0.1 }); },
+      smash: function () {
+        S.noise({ f0: 1200, f1: 200, dur: 0.18, vol: 0.18 });
+        S.tone({ type: 'square', f0: 700, f1: 1400, dur: 0.1, vol: 0.06 });
+      },
+      buy: function () {
+        [784, 988, 1319].forEach(function (f, i) { S.tone({ type: 'triangle', f0: f, dur: 0.12, vol: 0.12, delay: i * 0.06 }); });
+      },
       ui: function () { S.tone({ type: 'sine', f0: 700, f1: 1000, dur: 0.06, vol: 0.12 }); }
     };
     return {

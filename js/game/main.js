@@ -29,6 +29,7 @@
     }
   };
   document.documentElement.lang = app.i18n.lang;
+  app.progress = DD.createProgress(app.store); // コイン・強化・最高記録（段階2：L セーブ）
   app.sound = TB.createSound(app.store);
   app.sfx = DD.createSfx(app.sound);
 

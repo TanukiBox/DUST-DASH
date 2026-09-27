@@ -82,6 +82,21 @@
     this.parts.push({ kind: 'ring', x: x, y: y, vx: 0, vy: 0, r: r, life: 0, max: 0.28 });
   };
 
+  /** フィーバー中の虹色の軌跡 */
+  Effects.prototype.rainbow = function (x, y, t) {
+    this.parts.push({ kind: 'rainbow', hue: (t * 360) % 360, x: x + U.rand(-6, 6), y: y + U.rand(-14, 14),
+      vx: U.rand(-40, 0), vy: U.rand(-30, 30), r: U.rand(7, 12), life: 0, max: 0.45 });
+  };
+
+  /** コインを拾ったキラッ */
+  Effects.prototype.coinSpark = function (x, y) {
+    for (var i = 0; i < 4; i++) {
+      var a = i * Math.PI / 2 + 0.4;
+      this.parts.push({ kind: 'star', color: '#ffe066', x: x, y: y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160 - 60,
+        r: 5, rot: 0, vr: 6, life: 0, max: 0.3 });
+    }
+  };
+
   // ---- 数字のポップ（+5 km/h など）----
   /** vx を渡すと横に流れる（主人公と一緒に進ませて画面から消えないように） */
   Effects.prototype.pop = function (x, y, text, color, size, vx) {
@@ -101,6 +116,7 @@
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       if (p.kind === 'ghost' || p.kind === 'ring') continue;
+      if (p.kind === 'rainbow') { p.x += p.vx * dt; p.y += p.vy * dt; p.r *= Math.pow(0.3, dt); continue; }
       if (p.kind === 'dust') {
         p.vx *= Math.pow(0.1, dt);
         p.vy *= Math.pow(0.2, dt);
@@ -141,6 +157,13 @@
         ctx.restore();
         continue;
       }
+      if (p.kind === 'rainbow') {
+        ctx.globalAlpha = 1 - p.life / p.max;
+        ctx.beginPath(); D.ellipse(ctx, p.x, p.y, p.r, p.r, 0);
+        ctx.fillStyle = 'hsl(' + p.hue.toFixed(0) + ', 90%, 65%)'; ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
       if (p.kind !== 'dust') continue;
       var k = p.life / p.max;
       ctx.globalAlpha = (1 - k) * 0.9;
@@ -155,7 +178,7 @@
   Effects.prototype.drawFront = function (ctx) {
     for (var i = 0; i < this.parts.length; i++) {
       var p = this.parts[i];
-      if (p.kind === 'dust' || p.kind === 'ghost') continue;
+      if (p.kind === 'dust' || p.kind === 'ghost' || p.kind === 'rainbow') continue;
       var k = p.life / p.max;
       if (p.kind === 'ring') {
         ctx.globalAlpha = 1 - k;

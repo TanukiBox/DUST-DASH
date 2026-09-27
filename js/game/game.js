@@ -19,7 +19,16 @@
     this.holes = [];       // 地面の穴 { x0, x1 }
     this.visScale = 1;     // 引きの画のとき、獲物・障害物を大きく描く倍率
     var self = this;
-    this.groundAt = function (x) { return !self.holeAt(x); };
+    // フィーバー中は穴の上も走れる
+    this.groundAt = function (x) { return self.fever > 0 || !self.holeAt(x); };
+    // 強化の効き目（タイトルの飾り走りでは使わない）
+    this.up = opts.up || { stamina: 1, dash: 0, ukemi: 1, glutton: 1, luck: 1 };
+    this.coinsPicked = 0;  // 拾ったコイン（速さの倍率込み）
+    this.coinPop = 0;
+    this.feverGauge = 0;   // 満タンでフィーバー
+    this.fever = 0;        // フィーバーの残り時間
+    this.feverKind = '';   // 'fever' か 'dash'（スタートダッシュ）
+    if (!this.demo && this.up.dash > 0) { this.fever = this.up.dash; this.feverKind = 'dash'; }
     this.speed = this.demo ? 40 : CFG.BASE_SPEED_START;
     this.maxSpeed = this.speed;
     this.stamina = CFG.STAMINA_MAX; // スタミナ：時間とともに減り、食べると回復。0でバテる
@@ -71,6 +80,7 @@
     if (!(this.over && this.catchT >= CFG.HAWK_DIVE_TIME)) this.cam.follow(this.player.x, this.player.y, dt);
     this.fx.update(dt);
     if (this.staminaFlash > 0) this.staminaFlash = Math.max(0, this.staminaFlash - dt * 3);
+    if (this.coinPop > 0) this.coinPop = Math.max(0, this.coinPop - dt * 6);
     if (this.staminaFlash < 0) this.staminaFlash = Math.min(0, this.staminaFlash + dt * 3);
     if (!this.demo && !this.over && this.meters() >= this.nextMilestone) {
       this.milestone = this.nextMilestone;
@@ -87,13 +97,13 @@
 
     // スタミナと速さ（ウインドランナー式：スタミナは減り続け、減り方はだんだん速くなる）
     if (!this.demo && !this.over) {
-      var drain = CFG.STAMINA_DRAIN + CFG.STAMINA_DRAIN_GROW * this.time;
-      this.stamina = Math.max(0, this.stamina - drain * dt);
+      var drain = (CFG.STAMINA_DRAIN + CFG.STAMINA_DRAIN_GROW * this.time) * this.up.stamina;
+      if (this.fever <= 0) this.stamina = Math.max(0, this.stamina - drain * dt); // フィーバー中は減らない
       this.boost *= Math.exp(-dt / CFG.BOOST_TAU);
       if (this.stamina > 0) {
         // 土台の速さ（距離で上がる）＋食べた分。スタミナが少ないと足が遅くなる
         var fat = this.stamina < CFG.FATIGUE_AT ? U.lerp(CFG.FATIGUE_MIN, 1, this.stamina / CFG.FATIGUE_AT) : 1;
-        var target = (this.baseSpeed() + this.boost) * fat;
+        var target = (this.baseSpeed() + this.boost + (this.fever > 0 ? CFG.FEVER_BOOST : 0)) * fat;
         this.speed += (target - this.speed) * Math.min(1, dt * CFG.SPEED_FOLLOW);
       } else {
         // バテた：止まるまで減速
@@ -115,6 +125,17 @@
         this.combo = 0;
         this.hawkFrom = { x: p.x - 560, y: Math.min(p.y, 0) - 760 };
         this.events.push('hawkDive');
+      }
+    }
+    // フィーバーの時間
+    if (this.fever > 0 && !this.over) {
+      this.fever -= dt;
+      this.feverTrail = (this.feverTrail || 0) + dt;
+      while (this.feverTrail > 0.02) { this.feverTrail -= 0.02; this.fx.rainbow(p.x - 20, p.y - 30, this.time); }
+      if (this.fever <= 0) {
+        this.fever = 0;
+        p.invuln = 1.2; // 終わった直後に当たらないように
+        this.events.push('feverEnd');
       }
     }
     if (this.over) {
@@ -184,6 +205,16 @@
   // ------------------------------------------------------------
   Game.prototype.collide = function (it) {
     var p = this.player;
+    if (it.coin) {
+      var dx = it.x - p.x, dy = it.y - (p.y - 30);
+      // フィーバー中はコインが吸い寄せられる
+      if (this.fever > 0 && dx * dx + dy * dy < CFG.FEVER_MAGNET * CFG.FEVER_MAGNET) {
+        var dd = Math.sqrt(dx * dx + dy * dy) || 1;
+        it.x -= dx / dd * 1400 * STEP; it.y -= dy / dd * 1400 * STEP;
+      }
+      if (dx * dx + dy * dy < CFG.COIN_RADIUS * CFG.COIN_RADIUS) this.pickCoin(it);
+      return;
+    }
     var b = p.box();
     var vs = this.scaleOf(it);
     var w = it.w * vs, h = it.h * vs;
@@ -191,6 +222,11 @@
     var iTop = it.y - h, iBot = it.y;
     var m = CFG.STOMP_MARGIN_X;
 
+    if (it.obstacle && this.fever > 0) {
+      // フィーバー中：障害物はふっとばす
+      if (b.x1 + m > ix0 && b.x0 - m < ix1 && b.bottom >= iTop && b.top <= iBot) this.smash(it);
+      return;
+    }
     if (it.obstacle) {
       // サボテン・岩：どこから当たっても痛い（判定は見た目より少し小さめ）
       if (p.invuln <= 0 && b.x1 > it.x - w * 0.36 && b.x0 < it.x + w * 0.36 && b.bottom > iTop + 6 && b.top < iBot) {
@@ -200,6 +236,12 @@
     }
     var overlapX = b.x1 + m > ix0 && b.x0 - m < ix1;
     var overlapY = b.bottom >= iTop - 6 && b.top <= iBot;
+
+    if (this.fever > 0 && overlapX && overlapY) {
+      // フィーバー中：障害物はふっとばし、獲物はふれるだけで食べる
+      if (it.obstacle) { this.smash(it); return; }
+      if (it.prey && !it.noEat) { this.eat(it); return; }
+    }
 
     if (it.prey && !it.noEat && overlapX && overlapY && !p.onGround) {
       if (it.type !== 'snake') {
@@ -272,7 +314,8 @@
     var gain = Math.round(spec.gain * mult);
     this.speed += gain;
     this.boost += gain;
-    this.stamina = Math.min(CFG.STAMINA_MAX, this.stamina + spec.stamina * Math.min(mult, CFG.COMBO_STAMINA_MAX));
+    this.stamina = Math.min(CFG.STAMINA_MAX, this.stamina + spec.stamina * Math.min(mult, CFG.COMBO_STAMINA_MAX) * this.up.glutton);
+    this.addFever(CFG.FEVER_GAIN[it.type] * this.up.glutton * (1 + 0.1 * (this.combo - 1)));
     this.staminaFlash = 1;
     this.maxSpeed = Math.max(this.maxSpeed, this.speed);
     this.eaten++;
@@ -305,6 +348,46 @@
     }
   };
 
+  /** コインを拾う。速いほど1枚の価値が上がる */
+  Game.prototype.pickCoin = function (it) {
+    it.dead = true;
+    var val = DD.coinValue(this.speed) * (this.fever > 0 ? 2 : 1);
+    this.coinsPicked += val;
+    this.coinPop = 1;
+    this.addFever(CFG.FEVER_GAIN.coin);
+    this.fx.coinSpark(it.x, it.y);
+    this.coinSfx = (this.coinSfx || 0) + 1;
+    this.events.push('coin');
+  };
+
+  /** フィーバーゲージをためる。満タンでフィーバー */
+  Game.prototype.addFever = function (n) {
+    if (this.fever > 0 || this.over || this.demo) return;
+    this.feverGauge = Math.min(CFG.FEVER_MAX, this.feverGauge + n);
+    if (this.feverGauge >= CFG.FEVER_MAX) {
+      this.feverGauge = 0;
+      this.fever = CFG.FEVER_TIME;
+      this.feverKind = 'fever';
+      this.stamina = Math.min(CFG.STAMINA_MAX, this.stamina + 10);
+      this.fx.flash = 0.8;
+      this.fx.shake(6, 0.2);
+      this.events.push('fever');
+    }
+  };
+
+  /** フィーバー中に障害物にぶつかる：ふっとばしてコインに */
+  Game.prototype.smash = function (it) {
+    it.dead = true;
+    var cy = it.y - it.h / 2;
+    this.fx.burst(it.x, cy, COL.good, 12, true);
+    this.fx.ring(it.x, cy, 70);
+    this.fx.shake(6, 0.15);
+    this.coinsPicked += 3;
+    this.coinPop = 1;
+    this.fx.pop(it.x, cy - 40, '+3', COL.good, 30, this.speed * CFG.UNITS_PER_KMH);
+    this.events.push('smash');
+  };
+
   Game.prototype.hurt = function (it, loss, staminaLoss) {
     var p = this.player;
     p.hit();
@@ -316,7 +399,7 @@
     this.combo = 0;
     this.boost = 0;
     this.speed = Math.max(0, this.speed - loss);
-    this.stamina = Math.max(0, this.stamina - staminaLoss);
+    this.stamina = Math.max(0, this.stamina - staminaLoss * this.up.ukemi);
     this.staminaFlash = -1;
     this.fx.shake(9, 0.3);
     this.fx.pop(p.x + 10, p.y - 90, '-' + loss, COL.bad, 36, this.speed * CFG.UNITS_PER_KMH);
@@ -348,7 +431,7 @@
     var p = this.player;
     this.speed = Math.max(0, this.speed - CFG.HOLE_LOSS);
     this.boost = 0;
-    this.stamina = Math.max(0, this.stamina - CFG.HOLE_STAMINA);
+    this.stamina = Math.max(0, this.stamina - CFG.HOLE_STAMINA * this.up.ukemi);
     this.staminaFlash = -1;
     this.combo = 0;
     p.y = Math.min(p.y, 70);
@@ -413,33 +496,48 @@
 
   Game.prototype.place = function (name, x) {
     var add = function (self, type, xx, yy) { self.items.push(DD.createItem(type, xx, yy)); };
+    var last = function (self) { return self.items[self.items.length - 1]; };
     switch (name) {
-      case 'bugGround': add(this, 'bug', x, 0); return 0;
-      case 'bugAir': add(this, 'bug', x, -U.rand(70, 160)); return 0;
-      case 'lizard': add(this, 'lizard', x, 0); return 0;
-      case 'snake': add(this, 'snake', x, 0); return 0;
+      case 'bugGround': add(this, 'bug', x, 0); this.coinsToPrey(last(this)); return 0;
+      case 'bugAir': add(this, 'bug', x, -U.rand(70, 160)); this.coinsToPrey(last(this)); return 0;
+      case 'lizard': add(this, 'lizard', x, 0); this.coinsToPrey(last(this)); return 0;
+      case 'snake': add(this, 'snake', x, 0); this.coinsToPrey(last(this)); return 0;
       case 'chain':
         return this.placeChain(x);
-      case 'cactus': add(this, 'cactus', x); return 0;
-      case 'rock': add(this, 'rock', x); return 0;
-      case 'hole': return this.placeHole(x);
+      case 'feverCoins':
+        // フィーバー中はコインの波
+        var fv = this.speedAt(x), wl = fv * 0.9;
+        for (var q = 0; q < 12; q++) {
+          var qx = x + q * wl / 12;
+          this.items.push(DD.KINDS.coin.create(qx, -60 - Math.sin(q / 11 * Math.PI) * 90));
+        }
+        if (Math.random() < 0.5) add(this, 'bug', x + wl * 0.5, -U.rand(60, 120));
+        return wl;
+      case 'cactus': add(this, 'cactus', x); this.coinsOver(x); return 0;
+      case 'rock': add(this, 'rock', x); this.coinsOver(x); return 0;
+      case 'hole': var hw0 = this.placeHole(x); this.coinsAcross(x); return hw0;
       case 'holeBug':
         // 穴の上に虫：踏めば穴を飛び越えられる
         var hw = this.placeHole(x);
         add(this, 'bug', x + hw * 0.5, -U.rand(100, 130));
+        this.coinsToPrey(last(this));
         return hw;
-      case 'giantCactus': add(this, 'giantCactus', x); return 0;
+      case 'giantCactus': add(this, 'giantCactus', x); this.coinsOver(x, true); return 0;
       case 'wideHole':
         var ww = U.clamp(Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * CFG.WIDE_HOLE_WIDTH, 300, 1400);
         this.holes.push({ x0: x, x1: x + ww, wide: true });
         // ときどき真ん中に虫：踏めば2段ジャンプなしでも渡れる
-        if (Math.random() < 0.4) add(this, 'bug', x + ww * 0.45, -U.rand(110, 140));
+        if (Math.random() < 0.4) { add(this, 'bug', x + ww * 0.45, -U.rand(110, 140)); this.coinsToPrey(last(this)); }
+        else this.coinsAcross(x, true);
         return ww;
       case 'vulture':
       case 'vulture2':
         // 前の並びで跳ねている最中に来ないよう、少し間をあける
         var pre = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.5;
         add(this, 'vulture', x + pre);
+        // ハゲワシとすれちがう所の地面にコイン（ジャンプしないで拾う）
+        var vv = this.speedAt(x), meet = x + pre - CFG.OBSTACLE.vulture.vx * (x + pre - this.player.x) / (vv + CFG.OBSTACLE.vulture.vx);
+        this.coinsRow(meet - 120, 7, 40);
         if (name === 'vulture2') {
           // 2羽が上下に重なって飛ぶ：2段ジャンプでもほぼ越えられない
           var top = DD.createItem('vulture', x + pre + 40);
@@ -451,20 +549,93 @@
         // 岩が2つ：跳んで、着地して、すぐまた跳ぶ
         var gap2 = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.95;
         add(this, 'rock', x); add(this, 'rock', x + gap2);
+        this.coinsOver(x); this.coinsOver(x + gap2);
         return gap2;
       case 'holeRock':
         var hw2 = this.placeHole(x);
         var gap3 = hw2 + Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.75;
         add(this, 'cactus', x + gap3);
+        this.coinsAcross(x); this.coinsOver(x + gap3);
         return gap3;
       case 'cactusBug':
         // サボテンを飛び越えた先に虫
         add(this, 'cactus', x);
         var d = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.42;
         add(this, 'bug', x + d, -U.rand(80, 110));
+        this.coinsToPrey(last(this));
         return d;
     }
     return 0;
+  };
+
+  // ------------------------------------------------------------
+  // コインの並べ方：ジャンプの軌道どおり（たどって跳ぶと、うまく獲物に乗れる）
+  // ------------------------------------------------------------
+  /** x に来るころの自分の速さ（横の速さ・ゲーム内の長さ／秒）の見込み */
+  Game.prototype.speedAt = function (x) {
+    var now = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH;
+    var ta = Math.max(0, (x - this.player.x) / now);
+    return Math.max(35, this.baseSpeed() + this.boost * Math.exp(-ta / CFG.BOOST_TAU)) * CFG.UNITS_PER_KMH;
+  };
+
+  Game.prototype.addCoins = function (pts) {
+    for (var i = 0; i < pts.length; i++) this.items.push(DD.KINDS.coin.create(pts[i].x, pts[i].y - 30));
+  };
+
+  /** 地面から跳んで、獲物 it の上にちょうど降りる軌道にコインを置く */
+  Game.prototype.coinsToPrey = function (it) {
+    var gu = CFG.GRAVITY_UP, gd = CFG.GRAVITY_DOWN;
+    var top = it.h - it.y, up = CFG.JUMP_V / gu, apex = CFG.JUMP_V * CFG.JUMP_V / (2 * gu);
+    var v = this.speedAt(it.x), vx = it.vx || 0;
+    // 動く獲物は、着くころの位置をねらう
+    var arrive = it.x + vx * Math.max(0, (it.x - this.player.x) / Math.max(50, v - vx));
+    if (apex >= top + 6) {
+      var T = up + Math.sqrt(2 * (apex - top) / gd);
+      this.addCoins(DD.jumpPath({ x: arrive - v * T, y: 0, vy: -CFG.JUMP_V, v: v, until: T - 0.08 }));
+      return;
+    }
+    // 1段では届かない高さ：2段ジャンプの軌道で案内する
+    var path = DD.jumpPath({ x: 0, y: 0, vy: -CFG.JUMP_V, v: v, until: 2, second: 0.28, stopY: 0 });
+    var hiY = 0, k;
+    for (k = 0; k < path.length; k++) hiY = Math.min(hiY, path[k].y);
+    for (k = 0; k < path.length; k++) {
+      if (path[k].y <= hiY + 0.01) break;
+    }
+    // 頂点を過ぎて、獲物の上の高さまで下りてきた所で切る
+    var end = -1;
+    for (var j = k; j < path.length; j++) if (path[j].y >= -top) { end = j; break; }
+    if (end < 0 || -hiY < top) return;
+    var shift = arrive - path[end].x;
+    var pts = [];
+    for (j = 0; j < end; j++) pts.push({ x: path[j].x + shift, y: path[j].y });
+    this.addCoins(pts);
+  };
+
+  /** 障害物の上を越える軌道（double = 2段ジャンプ）。x = 越えたい所の中心 */
+  Game.prototype.coinsOver = function (x, double) {
+    var v = this.speedAt(x);
+    var second = double ? 0.3 : 0;
+    var path = DD.jumpPath({ x: 0, y: 0, vy: -CFG.JUMP_V, v: v, until: 2, second: second, stopY: 0 });
+    if (!path.length) return;
+    // いちばん高い所が x に来るようにずらす
+    var hi = path[0];
+    for (var i = 1; i < path.length; i++) if (path[i].y < hi.y) hi = path[i];
+    var shift = x - hi.x;
+    for (i = 0; i < path.length; i++) path[i].x += shift;
+    this.addCoins(path);
+  };
+
+  /** 穴を越える軌道（踏み切りは穴のふち） */
+  Game.prototype.coinsAcross = function (x0, double) {
+    var v = this.speedAt(x0);
+    this.addCoins(DD.jumpPath({ x: x0 - v * 0.04, y: 0, vy: -CFG.JUMP_V, v: v, until: 2, second: double ? 0.32 : 0, stopY: 0 }));
+  };
+
+  /** 地面の高さに並ぶコイン（走っていれば拾える） */
+  Game.prototype.coinsRow = function (x, n, gap) {
+    var pts = [];
+    for (var i = 0; i < n; i++) pts.push({ x: x + i * gap, y: 0 });
+    this.addCoins(pts);
   };
 
   Game.prototype.placeHole = function (x) {
@@ -489,11 +660,12 @@
     }
     var up = CFG.STOMP_BOUNCE_V / CFG.GRAVITY_UP;
     var rise = CFG.STOMP_BOUNCE_V * CFG.STOMP_BOUNCE_V / (2 * CFG.GRAVITY_UP);
-    var cx = x, vk = Math.max(this.speed, 35);
+    var cx = x, vk = this.speedAt(x) / CFG.UNITS_PER_KMH;
     for (k = 0; k < n; k++) {
       var it = DD.createItem(list[k][0], cx, list[k][1]);
       it.vx = 0; // 並びのトカゲは立ち止まっている（間隔がずれないように）
       this.items.push(it);
+      if (k === 0) this.coinsToPrey(it);
       if (k === n - 1) break;
       var nextSpec = CFG.PREY[list[k + 1][0]];
       var hNow = it.h - it.y;                       // 今の獲物の上の高さ
@@ -501,6 +673,8 @@
       var fall = Math.max(0, hNow + rise - hNext);
       var t = up + Math.sqrt(2 * fall / CFG.GRAVITY_DOWN);
       vk += Math.round(CFG.PREY[list[k][0]].gain * Math.min(1 + CFG.COMBO_STEP * k, CFG.COMBO_MAX_MULT));
+      // 踏んで跳ねる軌道にコイン（次の獲物へ導く）
+      this.addCoins(DD.jumpPath({ x: cx, y: -hNow, vy: -CFG.STOMP_BOUNCE_V, v: vk * CFG.UNITS_PER_KMH, until: t - 0.08 }));
       cx += vk * CFG.UNITS_PER_KMH * t;
     }
     return cx - x;
@@ -513,12 +687,18 @@
     if (this.nextSpawnX === null) this.nextSpawnX = Math.max(edge, this.player.x + v * CFG.FIRST_SPAWN_DELAY);
     while (this.nextSpawnX < edge) {
       var name = this.pickPattern();
+      if (this.fever > 0.8) name = 'feverCoins';
       var len = this.place(name, this.nextSpawnX);
       this.lastPattern = name;
       this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture/.test(name);
       if (this.lastObstacle) this.seenObstacle = true;
       this.spawned++;
-      this.nextSpawnX += len + v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX) * (1 - CFG.DIFF_GAP * this.difficulty());
+      var gapLen = v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX) * (1 - CFG.DIFF_GAP * this.difficulty());
+      // すきまに地面のコイン（走っているだけでも少し拾える）
+      if (Math.random() < CFG.COIN_ROW_CHANCE && name !== 'vulture' && name !== 'vulture2') {
+        this.coinsRow(this.nextSpawnX + len + v * 0.18, 4, 42);
+      }
+      this.nextSpawnX += len + gapLen;
     }
   };
 
@@ -538,6 +718,9 @@
       distance: Math.round(this.player.x / (CFG.UNITS_PER_KMH * 3.6)), // メートル
       snakes: this.snakes,
       maxCombo: this.maxCombo,
+      coinsPicked: Math.round(this.coinsPicked),
+      coinsDist: Math.floor(this.meters() / CFG.DIST_COIN_PER),
+      coins: Math.round((this.coinsPicked + Math.floor(this.meters() / CFG.DIST_COIN_PER)) * this.up.luck),
       time: this.time
     };
   };
@@ -546,6 +729,7 @@
   Game.prototype.danger = function () {
     if (this.demo) return 0;
     if (this.over) return 1;
+    if (this.fever > 0) return 0;
     // 速さが土台より落ちるほど、スタミナが少ないほど、タカが迫る
     var slow = U.clamp(1 - this.speed / (this.baseSpeed() * 0.95), 0, 1);
     var tired = U.clamp((CFG.FATIGUE_AT - this.stamina) / CFG.FATIGUE_AT, 0, 1) * 0.85;
@@ -680,7 +864,7 @@
     var list = [];
     for (var i = 0; i < this.items.length; i++) {
       var it = this.items[i];
-      if (it.dead) continue;
+      if (it.dead || it.coin) continue;
       var sc2 = this.scaleOf(it);
       list.push({ x: it.x - it.w * sc2 / 2, it: it, y: it.y - it.h * sc2 / 2 });
     }
