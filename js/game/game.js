@@ -20,8 +20,12 @@
     this.visScale = 1;     // 引きの画のとき、獲物・障害物を大きく描く倍率
     var self = this;
     this.groundAt = function (x) { return !self.holeAt(x); };
-    this.speed = this.demo ? 40 : CFG.START_SPEED;
+    this.speed = this.demo ? 40 : CFG.BASE_SPEED_START;
     this.maxSpeed = this.speed;
+    this.stamina = CFG.STAMINA_MAX; // スタミナ：時間とともに減り、食べると回復。0でバテる
+    this.boost = 0;        // 食べて上乗せされた速さ（だんだん元に戻る）
+    this.exhausted = false;
+    this.staminaFlash = 0; // ゲージを光らせる（＋は回復、－は減った）
     this.time = 0;
     this.snakes = 0;
     this.eaten = 0;
@@ -66,6 +70,8 @@
     // つかまれた後はカメラを止めて、空へ連れ去られるのを見送る
     if (!(this.over && this.catchT >= CFG.HAWK_DIVE_TIME)) this.cam.follow(this.player.x, this.player.y, dt);
     this.fx.update(dt);
+    if (this.staminaFlash > 0) this.staminaFlash = Math.max(0, this.staminaFlash - dt * 3);
+    if (this.staminaFlash < 0) this.staminaFlash = Math.min(0, this.staminaFlash + dt * 3);
     if (!this.demo && !this.over && this.meters() >= this.nextMilestone) {
       this.milestone = this.nextMilestone;
       this.nextMilestone += CFG.MILESTONE;
@@ -79,12 +85,29 @@
     var p = this.player;
     this.time += dt;
 
-    // 自然減速
+    // スタミナと速さ（ウインドランナー式：スタミナは減り続け、減り方はだんだん速くなる）
     if (!this.demo && !this.over) {
-      // 先に進むほど減速が強くなる
-      var decay = (CFG.DECAY_BASE + CFG.DECAY_RATE * this.speed) * (1 + CFG.DIFF_DECAY * this.difficulty());
-      this.speed -= decay * dt;
-      if (this.speed <= 0) {
+      var drain = CFG.STAMINA_DRAIN + CFG.STAMINA_DRAIN_GROW * this.time;
+      this.stamina = Math.max(0, this.stamina - drain * dt);
+      this.boost *= Math.exp(-dt / CFG.BOOST_TAU);
+      if (this.stamina > 0) {
+        // 土台の速さ（距離で上がる）＋食べた分。スタミナが少ないと足が遅くなる
+        var fat = this.stamina < CFG.FATIGUE_AT ? U.lerp(CFG.FATIGUE_MIN, 1, this.stamina / CFG.FATIGUE_AT) : 1;
+        var target = (this.baseSpeed() + this.boost) * fat;
+        this.speed += (target - this.speed) * Math.min(1, dt * CFG.SPEED_FOLLOW);
+      } else {
+        // バテた：止まるまで減速
+        if (!this.exhausted) {
+          this.exhausted = true;
+          this.combo = 0;
+          var tired = DD.app ? DD.app.i18n.t('exhausted') : 'EXHAUSTED';
+          this.fx.pop(p.x + 60, p.y - 110, tired, COL.bad, 34, this.speed * CFG.UNITS_PER_KMH * 0.6);
+          this.events.push('exhausted');
+        }
+        this.speed = Math.max(0, this.speed - CFG.EXHAUST_DECEL * dt);
+      }
+      this.maxSpeed = Math.max(this.maxSpeed, this.speed);
+      if (this.speed <= 0.01 && this.exhausted) {
         // 速度0：タカが急降下してくる
         this.speed = 0;
         this.over = true;
@@ -171,7 +194,7 @@
     if (it.obstacle) {
       // サボテン・岩：どこから当たっても痛い（判定は見た目より少し小さめ）
       if (p.invuln <= 0 && b.x1 > it.x - w * 0.36 && b.x0 < it.x + w * 0.36 && b.bottom > iTop + 6 && b.top < iBot) {
-        this.hurt(it, CFG.OBSTACLE_LOSS);
+        this.hurt(it, CFG.OBSTACLE_LOSS, CFG.OBSTACLE_STAMINA);
       }
       return;
     }
@@ -194,7 +217,7 @@
       // 横からの当たりは少し小さめの判定で（理不尽に感じないように）
       var sx0 = it.x - w * 0.34, sx1 = it.x + w * 0.34, sTop = iTop + 10;
       if (b.x1 > sx0 && b.x0 < sx1 && b.bottom > sTop && b.top < iBot) {
-        this.hurt(it, CFG.PREY.snake.hitLoss);
+        this.hurt(it, CFG.PREY.snake.hitLoss, CFG.PREY.snake.hitStamina);
       }
     }
   };
@@ -248,6 +271,9 @@
     var mult = Math.min(1 + CFG.COMBO_STEP * (this.combo - 1), CFG.COMBO_MAX_MULT);
     var gain = Math.round(spec.gain * mult);
     this.speed += gain;
+    this.boost += gain;
+    this.stamina = Math.min(CFG.STAMINA_MAX, this.stamina + spec.stamina * Math.min(mult, CFG.COMBO_STAMINA_MAX));
+    this.staminaFlash = 1;
     this.maxSpeed = Math.max(this.maxSpeed, this.speed);
     this.eaten++;
     this.fx.ghost(it);
@@ -279,7 +305,7 @@
     }
   };
 
-  Game.prototype.hurt = function (it, loss) {
+  Game.prototype.hurt = function (it, loss, staminaLoss) {
     var p = this.player;
     p.hit();
     if (it.type === 'snake') {
@@ -288,7 +314,10 @@
     }
     it.bump = 0.3;
     this.combo = 0;
+    this.boost = 0;
     this.speed = Math.max(0, this.speed - loss);
+    this.stamina = Math.max(0, this.stamina - staminaLoss);
+    this.staminaFlash = -1;
     this.fx.shake(9, 0.3);
     this.fx.pop(p.x + 10, p.y - 90, '-' + loss, COL.bad, 36, this.speed * CFG.UNITS_PER_KMH);
     this.events.push('hurt');
@@ -318,6 +347,9 @@
   Game.prototype.fall = function (hole) {
     var p = this.player;
     this.speed = Math.max(0, this.speed - CFG.HOLE_LOSS);
+    this.boost = 0;
+    this.stamina = Math.max(0, this.stamina - CFG.HOLE_STAMINA);
+    this.staminaFlash = -1;
     this.combo = 0;
     p.y = Math.min(p.y, 70);
     p.launch(CFG.HOLE_RECOVER_V);
@@ -514,7 +546,16 @@
   Game.prototype.danger = function () {
     if (this.demo) return 0;
     if (this.over) return 1;
-    return U.clamp(1 - this.speed / CFG.HAWK_SAFE_SPEED, 0, 1);
+    // 速さが土台より落ちるほど、スタミナが少ないほど、タカが迫る
+    var slow = U.clamp(1 - this.speed / (this.baseSpeed() * 0.95), 0, 1);
+    var tired = U.clamp((CFG.FATIGUE_AT - this.stamina) / CFG.FATIGUE_AT, 0, 1) * 0.85;
+    return Math.max(slow * 1.6, tired);
+  };
+
+  /** 土台の速さ（km/h）。距離とともに上がっていく */
+  Game.prototype.baseSpeed = function () {
+    var k = 1 - Math.exp(-this.meters() / CFG.BASE_SPEED_DIST);
+    return U.lerp(CFG.BASE_SPEED_START, CFG.BASE_SPEED_MAX, k);
   };
 
   /** 急降下〜連れ去りのタカの位置（ゲーム内の座標、体の中心） */

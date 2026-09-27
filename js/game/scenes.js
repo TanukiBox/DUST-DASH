@@ -123,7 +123,7 @@
       var a = b.t > 1.6 ? 1 - (b.t - 1.6) / 0.4 : 1;
       ctx.save();
       ctx.globalAlpha = Math.max(0, a);
-      ctx.translate(ui.w / 2, ui.safeTop + 190);
+      ctx.translate(ui.w / 2, ui.safeTop + 215);
       ctx.scale(k, k);
       ctx.rotate(-0.04);
       D.text(ctx, T('milestone', { n: b.n }), 0, 0, { size: 44, fill: COL.good, maxW: ui.w - 40 });
@@ -158,7 +158,7 @@
       else if (h.firstEatT !== null && g.maxCombo < 2 && g.time - h.firstEatT < 4) text = T('hintCombo');
       if (!text || g.over) return;
       var size = Math.min(ui.w * 0.06, 28);
-      var y = Math.max(ui.safeTop + 130, g.cam.groundY / ui.u * 0.42);
+      var y = Math.max(ui.safeTop + 170, g.cam.groundY / ui.u * 0.42);
       var pulse = 1 + Math.sin(g.time * 6) * 0.04;
       ctx.save();
       ctx.translate(ui.w / 2, y);
@@ -169,37 +169,72 @@
     press: function (app) { this.game.press(); }
   };
 
-  /** 画面上の速度・距離 */
+  /** 画面上のスタミナ・速度・距離 */
   function drawHud(app, ctx, g, comboPop) {
-    var ui = app.ui;
-    var x = ui.safeLeft + 18, y = ui.safeTop + 16;
+    var ui = app.ui, mr = app.muteRect();
+    var x = ui.safeLeft + 16, y = ui.safeTop + 12;
+
+    // ---- スタミナゲージ（ミュートボタンの左まで）----
+    var bx = x + 30, bw = mr.x - 16 - bx, bh = 24, by = mr.y + (mr.h - bh) / 2;
+    var k = U.clamp(g.stamina / DD.CFG.STAMINA_MAX, 0, 1);
+    var low = k < DD.CFG.FATIGUE_AT / DD.CFG.STAMINA_MAX;
+    var blink = low && !g.over && Math.floor(g.time * 5) % 2 === 0;
+    var fill = k > 0.5 ? '#8fd14f' : k > 0.25 ? COL.good : COL.bad;
+    D.shape(ctx, function (c) { D.roundRect(c, bx, by + 3, bw, bh, bh / 2); }, COL.sandDeep, 4);
+    D.shape(ctx, function (c) { D.roundRect(c, bx, by, bw, bh, bh / 2); }, '#6b4a33', 4);
+    if (k > 0.001) {
+      var fw = Math.max(bh, bw * k);
+      ctx.save();
+      ctx.beginPath(); D.roundRect(ctx, bx + 3, by + 3, fw - 6, bh - 6, (bh - 6) / 2); ctx.clip();
+      ctx.fillStyle = blink ? '#ffd0c8' : fill;
+      ctx.fillRect(bx, by, fw, bh);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(bx, by + 4, fw, 5);
+      ctx.restore();
+    }
+    // 回復したら白く、減ったら赤く光る
+    if (g.staminaFlash !== 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.abs(g.staminaFlash) * 0.7;
+      ctx.beginPath(); D.roundRect(ctx, bx, by, bw, bh, bh / 2);
+      ctx.fillStyle = g.staminaFlash > 0 ? '#ffffff' : COL.bad; ctx.fill();
+      ctx.restore();
+    }
+    // いなずまのアイコン
+    var ix = x + 14, iy = by + bh / 2, pulse = low ? 1 + Math.sin(g.time * 14) * 0.08 : 1;
+    ctx.save();
+    ctx.translate(ix, iy); ctx.scale(pulse, pulse);
+    D.oval(ctx, 0, 0, 17, 17, 0, COL.cream, 4);
+    D.shape(ctx, function (c) {
+      c.moveTo(3, -11); c.lineTo(-7, 2); c.lineTo(-1, 2); c.lineTo(-4, 11); c.lineTo(7, -3); c.lineTo(1, -3); c.closePath();
+    }, COL.good, 2.5);
+    ctx.restore();
+
+    // ---- 速さ ----
+    var sy = by + bh + 12;
     var v = Math.round(g.speed);
     var color = COL.white;
     if (v >= 150) color = COL.accent;
     else if (v >= 100) color = COL.good;
-    if (v < 20 && !g.over && Math.floor(g.time * 6) % 2 === 0) color = COL.bad;
-
-    // 速いほど数字がふるえる
     var jit = g.speedN() * 1.5;
     var jx = U.rand(-jit, jit), jy = U.rand(-jit, jit);
-    D.text(ctx, String(v), x + 118 + jx, y + 38 + jy, { size: 64, fill: color, align: 'right' });
-    D.text(ctx, 'km/h', x + 124, y + 52, { size: 22, fill: COL.white, align: 'left', lw: 6 });
+    D.text(ctx, String(v), x + 118 + jx, sy + 34 + jy, { size: 60, fill: color, align: 'right' });
+    D.text(ctx, 'km/h', x + 124, sy + 48, { size: 22, fill: COL.white, align: 'left', lw: 6 });
 
     // コンボ中は速度の下に大きく出す
     if (g.combo >= 2) {
       var cs = 1 + (comboPop || 0) * 0.35;
       var hot = Math.min(1, (g.combo - 1) / 6);
       ctx.save();
-      ctx.translate(x + 4, y + 100);
+      ctx.translate(x + 4, sy + 92);
       ctx.scale(cs, cs);
       ctx.rotate(-0.05);
       D.text(ctx, g.combo + ' ' + T('comboHud'), 0, 0, { size: 30 + hot * 8, fill: g.combo >= 5 ? COL.accent : COL.good, align: 'left' });
       ctx.restore();
     }
 
-    var m = g.meters();
-    var mr = app.muteRect();
-    D.text(ctx, m + ' m', mr.x - 14, y + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
+    // ---- 距離（右）----
+    D.text(ctx, g.meters() + ' m', ui.w - ui.safeRight - 18, sy + 30, { size: 28, fill: COL.white, align: 'right', lw: 7 });
   }
 
   // ------------------------------------------------------------

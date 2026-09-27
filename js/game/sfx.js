@@ -51,6 +51,7 @@
           S.tone({ type: 'triangle', f0: f, dur: 0.18, vol: 0.1, delay: i * 0.07 });
         });
       },
+      exhausted: function () { S.tone({ type: 'triangle', f0: 500, f1: 180, dur: 0.6, vol: 0.14 }); },
       ui: function () { S.tone({ type: 'sine', f0: 700, f1: 1000, dur: 0.06, vol: 0.12 }); }
     };
     return {
