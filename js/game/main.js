@@ -113,7 +113,9 @@
     last = now;
     dt = Math.min(dt, 1 / 20); // 重いときも一気に進みすぎない
     if (canvas.clientWidth !== app.W || canvas.clientHeight !== app.H) resize();
+    var before = app.scene;
     app.scene.update(app, dt);
+    if (app.scene !== before) app.scene.update(app, 0); // 途中で画面が切り替わったら、描く前に準備する
     app.scene.render(app, ctx);
     drawMute();
     global.requestAnimationFrame(frame);

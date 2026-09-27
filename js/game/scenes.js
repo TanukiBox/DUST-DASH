@@ -77,7 +77,8 @@
       this.t = 0;
       var self = this;
       this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('shop', { from: 'title' }); } };
-      app.setButtons([this.shopBtn]);
+      this.storyBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('story', { next: 'title' }); } };
+      app.setButtons([this.shopBtn, this.storyBtn]);
     },
     update: function (app, dt) {
       this.t += dt;
@@ -138,12 +139,20 @@
       }
       place(app, this.shopBtn, b);
 
+      // もう一度ストーリーを見る（左下の小さなボタン）
+      var sb = { x: ui.safeLeft + 14, y: ui.h - ui.safeBottom - 52, w: 110, h: 36 };
+      D.shape(ctx, function (c) { D.roundRect(c, sb.x, sb.y, sb.w, sb.h, 18); }, 'rgba(255,246,226,0.85)', 3);
+      D.text(ctx, '▶ ' + T('story'), sb.x + sb.w / 2, sb.y + sb.h / 2 + 1, { size: 15, fill: COL.ink, lw: 0, maxW: sb.w - 12 });
+      place(app, this.storyBtn, sb);
+
       D.text(ctx, T('credit'), cx, ui.h - ui.safeBottom - 22, { size: 18, fill: COL.cream, lw: 4 });
     },
     press: function (app) {
       if (this.t < 0.3) return;
       app.sfx.play('ui');
-      app.go('play');
+      // 初めてのときは、ストーリームービーから
+      if (!app.store.get('storySeen', false)) app.go('story', { next: 'play' });
+      else app.go('play');
     }
   };
 
