@@ -80,7 +80,7 @@
   // ------------------------------------------------------------
   // 地面：ゲーム内の座標で描く
   // ------------------------------------------------------------
-  DD.drawGround = function (ctx, cam) {
+  DD.drawGround = function (ctx, cam, holes) {
     var b = cam.bounds();
     var left = b.left - 40, right = b.right + 40, bottom = b.bottom + 40;
     // 地層
@@ -116,8 +116,8 @@
         ctx.stroke();
       }
       // 地面の上の草
-      if (h3 > 0.86) {
-        var gx = k * TILE + h2 * 40;
+      var gx = k * TILE + h2 * 40;
+      if (h3 > 0.86 && !inHole(holes, gx)) {
         D.shape(ctx, function (c) {
           c.moveTo(gx - 9, 1);
           c.quadraticCurveTo(gx - 10, -10, gx - 13, -16);
@@ -137,6 +137,12 @@
     ctx.lineWidth = D.LW;
     ctx.beginPath(); ctx.moveTo(left, 0); ctx.lineTo(right, 0); ctx.stroke();
   };
+
+  function inHole(holes, x) {
+    if (!holes) return false;
+    for (var i = 0; i < holes.length; i++) if (x > holes[i].x0 - 20 && x < holes[i].x1 + 20) return true;
+    return false;
+  }
 
   /** 足元の丸い影（高いほど小さく薄く） */
   DD.drawShadow = function (ctx, x, height, w) {

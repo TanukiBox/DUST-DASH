@@ -52,6 +52,25 @@
     CHAIN_GAP: 0.6,           // コンボ用の並びの間隔（秒換算）
     HURT_INVULN: 1.0,         // 当たった後の無敵時間（秒）
 
+    // ---- 障害物 ----
+    OBSTACLE: {
+      cactusTall:  { w: 40, h: 72 },
+      cactusRound: { w: 44, h: 42 },
+      rockBig:     { w: 62, h: 40 },
+      rockSmall:   { w: 46, h: 28 }
+    },
+    OBSTACLE_LOSS: 18,        // サボテン・岩に当たったときの減速（km/h）
+    HOLE_LOSS: 26,            // 穴に落ちたときの減速（km/h）
+    HOLE_WIDTH: 0.3,          // 穴の幅（秒換算。速いほど広くなる）
+    HOLE_RECOVER_V: 1250,     // 穴から飛び出す勢い
+
+    // ---- 速いときの見やすさ ----
+    PREY_ZOOM_COMP: 0.85,     // 引きの画になった分、獲物・障害物を大きく描く割合
+    GLOW_FROM: 60,            // この速さから獲物のまわりが光る
+    GLOW_FULL: 120,
+    MARKER_FROM: 60,          // この速さから、画面右はしに「もうすぐ来る」印を出す
+    MARKER_TIME: 0.9,         // 何秒前から印を出すか
+
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）
     SPAWN_GAP_MAX: 1.4,       // 同（最大）

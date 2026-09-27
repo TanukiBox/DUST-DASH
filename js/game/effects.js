@@ -186,12 +186,19 @@
    * 集中線（画面の座標で描く）。cx, cy に向かって周りから線が集まる。
    * power 0〜1。速いほど本数が増え、内側まで入ってくる。
    */
-  Effects.prototype.drawSpeedLines = function (ctx, w, h, cx, cy, power) {
+  Effects.prototype.drawSpeedLines = function (ctx, w, h, cx, cy, power, lane) {
     if (power <= 0.01) return;
     var R = Math.sqrt(w * w + h * h);
     var n = Math.round(18 + power * 46);
     var inner = U.lerp(0.62, 0.36, power) * Math.max(w, h);
     ctx.save();
+    if (lane) {
+      // 走る道すじ（獲物が来るところ）には線を引かない
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+      D.roundRect(ctx, lane.x, lane.y0, w - lane.x + 40, lane.y1 - lane.y0, 40);
+      ctx.clip('evenodd');
+    }
     ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.25 + power * 0.45).toFixed(3) + ')';
     for (var i = 0; i < n; i++) {
       var r1 = U.hash(this.lineSeed * 97 + i * 13.1);

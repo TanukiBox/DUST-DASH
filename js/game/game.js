@@ -16,6 +16,10 @@
     if (this.demo) this.cam.anchor = 0.5;
     this.fx = new DD.Effects();
     this.items = [];
+    this.holes = [];       // 地面の穴 { x0, x1 }
+    this.visScale = 1;     // 引きの画のとき、獲物・障害物を大きく描く倍率
+    var self = this;
+    this.groundAt = function (x) { return !self.holeAt(x); };
     this.speed = this.demo ? 40 : CFG.START_SPEED;
     this.maxSpeed = this.speed;
     this.time = 0;
@@ -44,6 +48,7 @@
   /** 画面サイズが決まってから毎フレーム呼ぶ */
   Game.prototype.update = function (dt, W, H) {
     this.cam.fit(W, H, this.demo ? 0 : this.speedN());
+    this.visScale = 1 + (this.cam.zoom - 1) * CFG.PREY_ZOOM_COMP;
     if (this.hitStop > 0) {
       this.hitStop -= dt;
       this.fx.update(dt * 0.25);
@@ -84,7 +89,12 @@
     }
 
     if (!this.demo && !this.over) this.assist(dt);
-    p.update(dt, this.speed);
+    p.update(dt, this.speed, this.groundAt);
+    // 穴に深く落ちた／穴の壁にぶつかった
+    if (!this.over && !p.onGround && p.y > 24 && p.vy >= 0) {
+      var hole = this.holeAt(p.x);
+      if (!hole || p.y > 40) this.fall(hole || this.holeNear(p.x));
+    }
     this.fx.runDust(dt, p.x, p.y, this.speedN(), p.onGround && this.speed > 0);
 
     // 主人公の出来事を演出に変える
@@ -92,6 +102,7 @@
       var ev = p.events[e];
       if (ev === 'land') {
         this.fx.puff(p.x, 0, 5);
+        this.fx.dust(p.x, 0, 3, this.speedN());
         if (this.combo >= 2) this.events.push('comboEnd');
         this.combo = 0;
       }
@@ -104,6 +115,7 @@
       var it = this.items[i];
       if (it.dead) continue;
       DD.KINDS[it.type].update(it, dt);
+      if (it.bump > 0) it.bump -= dt;
       if (!this.over) this.collide(it);
     }
   };
@@ -114,9 +126,18 @@
   Game.prototype.collide = function (it) {
     var p = this.player;
     var b = p.box();
-    var ix0 = it.x - it.w / 2, ix1 = it.x + it.w / 2;
-    var iTop = it.y - it.h, iBot = it.y;
+    var w = it.w * this.visScale, h = it.h * this.visScale;
+    var ix0 = it.x - w / 2, ix1 = it.x + w / 2;
+    var iTop = it.y - h, iBot = it.y;
     var m = CFG.STOMP_MARGIN_X;
+
+    if (it.obstacle) {
+      // サボテン・岩：どこから当たっても痛い（判定は見た目より少し小さめ）
+      if (p.invuln <= 0 && b.x1 > it.x - w * 0.36 && b.x0 < it.x + w * 0.36 && b.bottom > iTop + 6 && b.top < iBot) {
+        this.hurt(it, CFG.OBSTACLE_LOSS);
+      }
+      return;
+    }
     var overlapX = b.x1 + m > ix0 && b.x0 - m < ix1;
     var overlapY = b.bottom >= iTop - 6 && b.top <= iBot;
 
@@ -127,14 +148,14 @@
         return;
       }
       // ヘビ：落ちてきていて、足がヘビの上の方にあれば踏める
-      if (p.vy > 0 && p.prevY <= iTop + it.h * 0.75) {
+      if (p.vy > 0 && p.prevY <= iTop + h * 0.75) {
         this.eat(it);
         return;
       }
     }
     if (it.type === 'snake' && p.invuln <= 0) {
       // 横からの当たりは少し小さめの判定で（理不尽に感じないように）
-      var sx0 = it.x - it.w * 0.34, sx1 = it.x + it.w * 0.34, sTop = iTop + 10;
+      var sx0 = it.x - w * 0.34, sx1 = it.x + w * 0.34, sTop = iTop + 10;
       if (b.x1 > sx0 && b.x0 < sx1 && b.bottom > sTop && b.top < iBot) {
         this.hurt(it, CFG.PREY.snake.hitLoss);
       }
@@ -153,7 +174,7 @@
     for (var i = 0; i < this.items.length; i++) {
       var it = this.items[i];
       if (it.dead || !it.prey || it.noEat) continue;
-      var top = it.y - it.h;
+      var top = it.y - it.h * this.visScale;
       var drop = top - p.y;                 // 足から獲物の上までの高さ
       if (drop < 4) continue;
       var relV = v - (it.vx || 0);
@@ -186,7 +207,7 @@
     this.maxSpeed = Math.max(this.maxSpeed, this.speed);
     this.eaten++;
     this.fx.ghost(it);
-    var cy = it.y - it.h / 2;
+    var cy = it.y - it.h * this.visScale / 2;
     var big = it.type === 'snake';
     var hot = Math.min(1, (this.combo - 1) / 6); // コンボが続くほど派手に
     if (big) {
@@ -196,14 +217,14 @@
       this.fx.shake(8, 0.25);
       this.fx.flash = 0.6;
       this.hitStop = CFG.HITSTOP_BIG;
-      this.fx.pop(it.x, iTopOf(it) - 30, '+' + gain + ' km/h', COL.good, 42, this.speed * CFG.UNITS_PER_KMH);
+      this.fx.pop(it.x, cy - 50, '+' + gain + ' km/h', COL.good, 42, this.speed * CFG.UNITS_PER_KMH);
       this.events.push('eatBig');
     } else {
       p.bounce(CFG.STOMP_BOUNCE_V);
       this.fx.burst(it.x, cy, it.type === 'bug' ? COL.bug : COL.lizard, 8 + Math.round(hot * 6), hot > 0.5);
       this.fx.shake(2 + hot * 4, 0.12);
       this.hitStop = CFG.HITSTOP;
-      this.fx.pop(it.x, iTopOf(it) - 24, '+' + gain, COL.good, (it.type === 'bug' ? 28 : 34) + hot * 8, this.speed * CFG.UNITS_PER_KMH);
+      this.fx.pop(it.x, cy - 40, '+' + gain, COL.good, (it.type === 'bug' ? 28 : 34) + hot * 8, this.speed * CFG.UNITS_PER_KMH);
       this.events.push('eat');
     }
     this.fx.ring(it.x, cy, big ? 70 : 40 + hot * 30);
@@ -217,8 +238,11 @@
   Game.prototype.hurt = function (it, loss) {
     var p = this.player;
     p.hit();
-    it.strike = 0.4;
-    it.noEat = true; // 当たったヘビはそのまま踏んでも食べられない
+    if (it.type === 'snake') {
+      it.strike = 0.4;
+      it.noEat = true; // 当たったヘビはそのまま踏んでも食べられない
+    }
+    it.bump = 0.3;
     this.combo = 0;
     this.speed = Math.max(0, this.speed - loss);
     this.fx.shake(9, 0.3);
@@ -226,7 +250,46 @@
     this.events.push('hurt');
   };
 
-  function iTopOf(it) { return it.y - it.h; }
+
+  // ------------------------------------------------------------
+  // 穴
+  // ------------------------------------------------------------
+  Game.prototype.holeAt = function (x) {
+    for (var i = 0; i < this.holes.length; i++) {
+      var h = this.holes[i];
+      if (x > h.x0 + 8 && x < h.x1 - 8) return h;
+    }
+    return null;
+  };
+
+  Game.prototype.holeNear = function (x) {
+    for (var i = 0; i < this.holes.length; i++) {
+      var h = this.holes[i];
+      if (x > h.x0 - 60 && x < h.x1 + 60) return h;
+    }
+    return null;
+  };
+
+  /** 穴に落ちた：大きく減速して、穴の向こうへ飛び出して地面に戻る */
+  Game.prototype.fall = function (hole) {
+    var p = this.player;
+    this.speed = Math.max(0, this.speed - CFG.HOLE_LOSS);
+    this.combo = 0;
+    p.y = Math.min(p.y, 70);
+    p.launch(CFG.HOLE_RECOVER_V);
+    p.jumps = 2; // 飛び出し中は空中ジャンプなし
+    p.invuln = CFG.HURT_INVULN;
+    p.hurt = 0.6;
+    // 着地までに穴の向こう側へ届くように横にも進ませる
+    var gu = CFG.GRAVITY_UP, gd = CFG.GRAVITY_DOWN, v0 = CFG.HOLE_RECOVER_V;
+    var air = v0 / gu + Math.sqrt(2 * (v0 * v0 / (2 * gu) - p.y) / gd);
+    var target = (hole ? hole.x1 : p.x) + 40;
+    p.extraVX = Math.max(0, (target - p.x) / air - this.speed * CFG.UNITS_PER_KMH);
+    this.fx.shake(10, 0.35);
+    this.fx.puff(p.x, 0, 7);
+    this.fx.pop(p.x + 10, -120, '-' + CFG.HOLE_LOSS, COL.bad, 40, this.speed * CFG.UNITS_PER_KMH + p.extraVX);
+    this.events.push('fall');
+  };
 
   // ------------------------------------------------------------
   // 出現：画面の右の外に、次々と獲物を置いていく
@@ -236,7 +299,12 @@
     { name: 'bugAir', w: 20 },
     { name: 'chain', w: 26, minCount: 1 },
     { name: 'lizard', w: 22 },
-    { name: 'snake', w: 14, minCount: 3 }
+    { name: 'snake', w: 14, minCount: 3 },
+    { name: 'cactus', w: 12, minCount: 4, obstacle: true },
+    { name: 'rock', w: 10, minCount: 4, obstacle: true },
+    { name: 'hole', w: 10, minCount: 6, obstacle: true },
+    { name: 'holeBug', w: 7, minCount: 6, obstacle: true },
+    { name: 'cactusBug', w: 7, minCount: 6, obstacle: true }
   ];
 
   Game.prototype.pickPattern = function () {
@@ -245,6 +313,7 @@
       var pt = PATTERNS[i];
       if (pt.minCount && this.spawned < pt.minCount) continue;
       if (pt.name === this.lastPattern && pt.name === 'snake') continue; // ヘビ2連続はなし
+      if (pt.obstacle && this.lastObstacle) continue;                    // 障害物2連続はなし
       list.push(pt); total += pt.w;
     }
     var r = Math.random() * total;
@@ -261,8 +330,28 @@
       case 'snake': add(this, 'snake', x, 0); return 0;
       case 'chain':
         return this.placeChain(x);
+      case 'cactus': add(this, 'cactus', x); return 0;
+      case 'rock': add(this, 'rock', x); return 0;
+      case 'hole': return this.placeHole(x);
+      case 'holeBug':
+        // 穴の上に虫：踏めば穴を飛び越えられる
+        var hw = this.placeHole(x);
+        add(this, 'bug', x + hw * 0.5, -U.rand(100, 130));
+        return hw;
+      case 'cactusBug':
+        // サボテンを飛び越えた先に虫
+        add(this, 'cactus', x);
+        var d = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.42;
+        add(this, 'bug', x + d, -U.rand(80, 110));
+        return d;
     }
     return 0;
+  };
+
+  Game.prototype.placeHole = function (x) {
+    var w = U.clamp(Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * CFG.HOLE_WIDTH, 120, 520);
+    this.holes.push({ x0: x, x1: x + w });
+    return w;
   };
 
   /**
@@ -299,13 +388,15 @@
   };
 
   Game.prototype.spawn = function () {
-    var edge = this.cam.x + this.cam.viewW + 120;
     var v = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH;
+    // 画面に入る少し前に置いておく（右はしの「もうすぐ来る」印のため）
+    var edge = this.cam.x + this.cam.viewW + Math.max(120, v * CFG.MARKER_TIME);
     if (this.nextSpawnX === null) this.nextSpawnX = Math.max(edge, this.player.x + v * CFG.FIRST_SPAWN_DELAY);
     while (this.nextSpawnX < edge) {
       var name = this.pickPattern();
       var len = this.place(name, this.nextSpawnX);
       this.lastPattern = name;
+      this.lastObstacle = /cactus|rock|hole/.test(name);
       this.spawned++;
       this.nextSpawnX += len + v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX);
     }
@@ -315,6 +406,9 @@
     var left = this.cam.x - 200;
     for (var i = this.items.length - 1; i >= 0; i--) {
       if (this.items[i].dead || this.items[i].x < left) this.items.splice(i, 1);
+    }
+    for (i = this.holes.length - 1; i >= 0; i--) {
+      if (this.holes[i].x1 < left) this.holes.splice(i, 1);
     }
   };
 
@@ -344,20 +438,42 @@
     DD.drawSky(ctx, W, H, cam.groundY - cam.y * cam.scale);
 
     cam.apply(ctx, dpr, sh.x, sh.y);
-    DD.drawGround(ctx, cam);
+    DD.drawGround(ctx, cam, this.holes);
+    var bnd = cam.bounds();
+    for (var i = 0; i < this.holes.length; i++) {
+      var hl = this.holes[i];
+      if (hl.x1 > bnd.left && hl.x0 < bnd.right) DD.drawHole(ctx, hl, bnd.bottom);
+    }
 
     // 影
-    var p = this.player;
-    DD.drawShadow(ctx, p.x + 2, p.y, 26);
-    for (var i = 0; i < this.items.length; i++) {
+    var p = this.player, vs = this.visScale;
+    if (!this.holeAt(p.x)) DD.drawShadow(ctx, p.x + 2, p.y, 26);
+    for (i = 0; i < this.items.length; i++) {
       var it = this.items[i];
-      if (it.type === 'bug' && it.air) DD.drawShadow(ctx, it.x, it.y, 12);
+      if (it.type === 'bug' && it.air) DD.drawShadow(ctx, it.x, it.y, 12 * vs);
     }
 
     this.fx.drawDust(ctx);
+    // 速いときは獲物のまわりをふわっと光らせて見つけやすく
+    var glow = U.clamp((this.speed - CFG.GLOW_FROM) / (CFG.GLOW_FULL - CFG.GLOW_FROM), 0, 1);
     for (i = 0; i < this.items.length; i++) {
       it = this.items[i];
-      if (!it.dead) DD.KINDS[it.type].draw(ctx, it);
+      if (it.dead) continue;
+      if (glow > 0 && it.prey && !it.noEat) {
+        var gy = it.y - it.h * vs / 2, gr = Math.max(it.w, it.h) * vs * 0.95;
+        var grad = ctx.createRadialGradient(it.x, gy, gr * 0.2, it.x, gy, gr);
+        grad.addColorStop(0, 'rgba(255, 255, 240, ' + (0.85 * glow).toFixed(3) + ')');
+        grad.addColorStop(1, 'rgba(255, 255, 240, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); D.ellipse(ctx, it.x, gy, gr, gr, 0); ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(it.x, it.y);
+      var bump = it.bump > 0 ? 1 + Math.sin(it.bump * 30) * 0.06 : 1;
+      ctx.scale(vs * bump, vs / bump);
+      ctx.translate(-it.x, -it.y);
+      DD.KINDS[it.type].draw(ctx, it);
+      ctx.restore();
     }
     p.draw(ctx, this.speedN());
     this.fx.drawFront(ctx);
@@ -366,11 +482,73 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!this.demo) {
       var ps = cam.toScreen(p.x + 40, p.y - 40);
-      this.fx.drawSpeedLines(ctx, W, H, ps.x, ps.y, this.speedN());
+      var g0 = cam.toScreen(p.x, 0);
+      var lane = { x: g0.x - 30 * cam.scale, y0: g0.y - 230 * cam.scale, y1: g0.y + 16 * cam.scale };
+      this.fx.drawSpeedLines(ctx, W, H, ps.x, ps.y, this.speedN(), lane);
+      this.drawMarkers(ctx, dpr);
     }
     if (this.fx.flash > 0) {
       ctx.fillStyle = 'rgba(255, 250, 220, ' + (this.fx.flash * 0.5).toFixed(3) + ')';
       ctx.fillRect(0, 0, W, H);
+    }
+  };
+
+  /**
+   * 画面の右はしに「もうすぐ来る」印。速いときだけ出す。
+   * 獲物は白、障害物は赤の吹き出しに、中身の小さな絵を入れる。
+   */
+  Game.prototype.drawMarkers = function (ctx, dpr) {
+    if (this.speed < CFG.MARKER_FROM) return;
+    var cam = this.cam, W = cam.W, v = this.speed * CFG.UNITS_PER_KMH;
+    var right = cam.x + cam.viewW;
+    var ui = DD.app ? DD.app.ui : { u: 1, safeRight: 0 };
+    var R = 19 * ui.u, bx = W - R - 10 * ui.u - ui.safeRight * ui.u;
+    var list = [];
+    for (var i = 0; i < this.items.length; i++) {
+      var it = this.items[i];
+      if (it.dead) continue;
+      list.push({ x: it.x - it.w * this.visScale / 2, it: it, y: it.y - it.h * this.visScale / 2 });
+    }
+    for (i = 0; i < this.holes.length; i++) list.push({ x: this.holes[i].x0, hole: true, y: 10 });
+    // いちばん近いものだけを出す（重なって読めなくならないように）
+    var next = null, nextT = 1e9;
+    for (i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (c.x <= right) continue;
+      var rv = v - ((c.it && c.it.vx) || 0);
+      if (rv <= 0) continue;
+      var tt = (c.x - right) / rv;
+      if (tt < nextT) { nextT = tt; next = c; }
+    }
+    if (!next || nextT > CFG.MARKER_TIME) return;
+    list = [next];
+    for (i = 0; i < list.length; i++) {
+      var m = list[i];
+      var t = nextT;
+      var a = U.clamp(1 - t / CFG.MARKER_TIME, 0, 1);
+      var sy = U.clamp(cam.toScreen(0, m.y).y, R + 10, cam.H - R - 10);
+      var bad = m.hole || (m.it && m.it.obstacle);
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.translate(bx, sy);
+      var s = U.easeOutBack(U.clamp(a * 4, 0, 1)) * (1 + Math.sin(this.time * 18) * 0.05);
+      ctx.scale(s, s);
+      // 吹き出し（右向きのとがり）
+      D.shape(ctx, function (c) {
+        c.arc(0, 0, R, 0.55, Math.PI * 2 - 0.55);
+        c.lineTo(R + 9 * ui.u, 0);
+        c.closePath();
+      }, bad ? '#ffd2c8' : COL.cream, 3 * ui.u);
+      if (m.hole) {
+        D.text(ctx, '!', 0, 1, { size: R * 1.3, fill: COL.bad, lw: R * 0.25 });
+      } else {
+        var it2 = m.it, k = (R * 1.45) / Math.max(it2.w, it2.h + 10);
+        ctx.scale(k, k);
+        var copy = { x: 0, y: it2.h / 2 };
+        for (var key in it2) if (key !== 'x' && key !== 'y') copy[key] = it2[key];
+        DD.KINDS[it2.type].draw(ctx, copy);
+      }
+      ctx.restore();
     }
   };
 

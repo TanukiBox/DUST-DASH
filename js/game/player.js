@@ -30,6 +30,7 @@
     this.stretch = 0;      // ＋で縦に伸びる、－でつぶれる
     this.wingFlap = 0;
     this.blink = 0;
+    this.extraVX = 0;      // 穴から飛び出すときの追加の横移動
     this.events = [];      // 'jump' | 'double' | 'land'（演出・効果音用）
   };
 
@@ -83,15 +84,23 @@
     else if (this.vy < 0) this.vy *= 0.3;
   };
 
-  Player.prototype.update = function (dt, speed) {
+  /** ground(x) は、その場所に地面があるか（穴なら false） */
+  Player.prototype.update = function (dt, speed, ground) {
     this.time += dt;
     this.prevY = this.y;
-    this.x += speed * CFG.UNITS_PER_KMH * dt;
+    this.x += (speed * CFG.UNITS_PER_KMH + this.extraVX) * dt;
 
+    // 穴の上に来たら落ちはじめる（少しの間は地上ジャンプできる）
+    if (this.onGround && ground && !ground(this.x)) {
+      this.onGround = false;
+      this.vy = 0;
+      this.coyote = CFG.COYOTE_TIME;
+    }
     if (!this.onGround) {
       this.vy += (this.vy < 0 ? CFG.GRAVITY_UP : CFG.GRAVITY_DOWN) * dt;
       this.y += this.vy * dt;
-      if (this.y >= 0 && this.vy > 0) {
+      if (this.y >= 0 && this.y < 24 && this.vy > 0 && (!ground || ground(this.x))) {
+        this.extraVX = 0;
         this.y = 0;
         this.vy = 0;
         this.onGround = true;
@@ -333,8 +342,9 @@
   };
 
   Player.prototype.draw = function (ctx, speedN) {
-    // 無敵中は点滅
-    if (this.invuln > 0 && Math.floor(this.invuln * 14) % 2 === 0) return;
+    // 無敵中は点滅（消さずにうすくする）
+    var dim = this.invuln > 0 && Math.floor(this.invuln * 14) % 2 === 0;
+    if (dim) { ctx.save(); ctx.globalAlpha = 0.4; }
     DD.drawRoadrunner(ctx, this.x, this.y, {
       phase: this.phase,
       time: this.time,
@@ -347,6 +357,7 @@
       blink: this.blink,
       wingFlap: this.wingFlap
     });
+    if (dim) ctx.restore();
   };
 
   DD.Player = Player;
