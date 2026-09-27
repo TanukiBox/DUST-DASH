@@ -86,6 +86,7 @@
       this.game.onOver = function (res) { app.go('result', { game: self.game, result: res }); };
       this.hint = { jumped: false, firstEatT: null };
       this.comboPop = 0;
+      this.banner = null;
       app.input.setButtons([]);
     },
     update: function (app, dt) {
@@ -95,10 +96,12 @@
         var e = g.events[i];
         if (e === 'jump') this.hint.jumped = true;
         if (e === 'combo') this.comboPop = 1;
+        if (e === 'milestone') this.banner = { n: g.milestone, t: 0 };
       }
       g.events.length = 0;
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
       if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt * 5);
+      if (this.banner) { this.banner.t += dt; if (this.banner.t > 2) this.banner = null; }
       this.watchNewObstacles(app, g);
     },
     render: function (app, ctx) {
@@ -107,6 +110,23 @@
       uiSpace(ctx, app);
       drawHud(app, ctx, g, this.comboPop);
       this.drawHints(app, ctx, g);
+      this.drawBanner(app, ctx);
+    },
+    /** 「○m 突破！」：先に進んだことと、手ごわくなることを知らせる */
+    drawBanner: function (app, ctx) {
+      var b = this.banner;
+      if (!b || this.game.over) return;
+      var ui = app.ui;
+      var k = b.t < 0.3 ? U.easeOutBack(b.t / 0.3) : 1;
+      var a = b.t > 1.6 ? 1 - (b.t - 1.6) / 0.4 : 1;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.translate(ui.w / 2, ui.safeTop + 190);
+      ctx.scale(k, k);
+      ctx.rotate(-0.04);
+      D.text(ctx, T('milestone', { n: b.n }), 0, 0, { size: 44, fill: COL.good, maxW: ui.w - 40 });
+      D.text(ctx, T('harder'), 0, 40, { size: 20, fill: COL.cream, lw: 6, maxW: ui.w - 40 });
+      ctx.restore();
     },
     /** 初めて見る種類の障害物が画面に入ったら、よけ方を1回だけ教える */
     watchNewObstacles: function (app, g) {
@@ -129,6 +149,7 @@
     },
     drawHints: function (app, ctx, g) {
       var ui = app.ui, h = this.hint, text = null;
+      if (this.banner) return; // 「○m 突破！」と重ならないように
       if (h.special && g.time < h.special.until) text = h.special.text;
       else if (!h.jumped && g.time < 6) text = T('hintJump');
       else if (g.eaten === 0 && g.time < 12) text = T('hintStomp');

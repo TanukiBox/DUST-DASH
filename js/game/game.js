@@ -31,7 +31,10 @@
     this.spawned = 0;
     this.nextSpawnX = null;
     this.over = false;
-    this.stopTimer = 0;
+    this.catchT = 0;       // タカが急降下を始めてからの時間
+    this.shadow = 0;       // タカの影の大きさ（なめらかに変える）
+    this.cried = false;
+    this.nextMilestone = CFG.MILESTONE;
     this.onOver = null;
     this.events = [];   // 効果音などに使う出来事
   }
@@ -60,8 +63,14 @@
       this.step(h);
       left -= h;
     }
-    this.cam.follow(this.player.x, this.player.y, dt);
+    // つかまれた後はカメラを止めて、空へ連れ去られるのを見送る
+    if (!(this.over && this.catchT >= CFG.HAWK_DIVE_TIME)) this.cam.follow(this.player.x, this.player.y, dt);
     this.fx.update(dt);
+    if (!this.demo && !this.over && this.meters() >= this.nextMilestone) {
+      this.milestone = this.nextMilestone;
+      this.nextMilestone += CFG.MILESTONE;
+      this.events.push('milestone');
+    }
     if (!this.demo) this.spawn();
     this.cull();
   };
@@ -72,24 +81,51 @@
 
     // 自然減速
     if (!this.demo && !this.over) {
-      this.speed -= (CFG.DECAY_BASE + CFG.DECAY_RATE * this.speed) * dt;
+      // 先に進むほど減速が強くなる
+      var decay = (CFG.DECAY_BASE + CFG.DECAY_RATE * this.speed) * (1 + CFG.DIFF_DECAY * this.difficulty());
+      this.speed -= decay * dt;
       if (this.speed <= 0) {
+        // 速度0：タカが急降下してくる
         this.speed = 0;
         this.over = true;
-        this.stopTimer = 0;
-        this.events.push('stop');
+        this.catchT = 0;
+        this.combo = 0;
+        this.hawkFrom = { x: p.x - 560, y: Math.min(p.y, 0) - 760 };
+        this.events.push('hawkDive');
       }
     }
     if (this.over) {
-      this.stopTimer += dt;
-      if (this.stopTimer > 1.0 && this.onOver) {
+      var wasDiving = this.catchT < CFG.HAWK_DIVE_TIME;
+      this.catchT += dt;
+      if (wasDiving && this.catchT >= CFG.HAWK_DIVE_TIME) {
+        var hp = this.hawkPos();
+        this.hawkCatchAt = { x: hp.x, y: hp.y };
+        this.fx.burst(p.x, p.y - 40, COL.good, 10, true);
+        this.fx.puff(p.x, 0, 7);
+        this.fx.shake(10, 0.3);
+        this.events.push('hawkCatch');
+      }
+      if (this.catchT > CFG.HAWK_DIVE_TIME + CFG.HAWK_CARRY_TIME && this.onOver) {
         var cb = this.onOver; this.onOver = null;
         cb(this.result());
       }
     }
 
+    // タカの影：遅くなるほど大きく迫る。ある程度近づいたら鳴き声
+    var danger = this.danger();
+    this.shadow += (danger - this.shadow) * Math.min(1, dt * 3);
+    if (!this.cried && danger > CFG.HAWK_CRY_AT && !this.over && !this.demo) { this.cried = true; this.events.push('hawkCry'); }
+    if (this.cried && danger < CFG.HAWK_CRY_AT - 0.2) this.cried = false;
+
     if (!this.demo && !this.over) this.assist(dt);
-    p.update(dt, this.speed, this.groundAt);
+    if (this.over && this.catchT >= CFG.HAWK_DIVE_TIME) {
+      // つかまれて空へ
+      var hk = this.hawkPos();
+      p.x = hk.x + 4; p.y = hk.y + 108;
+      p.onGround = false; p.vy = 0; p.hurt = 1; p.time += dt;
+    } else {
+      p.update(dt, this.speed, this.groundAt);
+    }
     // 穴に深く落ちた／穴の壁にぶつかった
     if (!this.over && !p.onGround && p.y > 24 && p.vy >= 0) {
       var hole = this.holeAt(p.x);
@@ -307,29 +343,35 @@
     { name: 'bugAir', w: 20 },
     { name: 'chain', w: 26, minCount: 1 },
     { name: 'lizard', w: 22 },
-    { name: 'snake', w: 14, minCount: 3 },
-    { name: 'cactus', w: 12, minCount: 4, obstacle: true },
-    { name: 'rock', w: 10, minCount: 4, obstacle: true },
-    { name: 'hole', w: 10, minCount: 6, obstacle: true },
-    { name: 'holeBug', w: 7, minCount: 6, obstacle: true },
-    { name: 'cactusBug', w: 7, minCount: 6, obstacle: true },
+    { name: 'snake', w: 14 },
+    { name: 'cactus', w: 12, obstacle: true },
+    { name: 'rock', w: 10, obstacle: true },
+    { name: 'hole', w: 10, obstacle: true },
+    { name: 'holeBug', w: 7, obstacle: true },
+    { name: 'cactusBug', w: 7, obstacle: true },
     // 2段ジャンプでよけるもの
-    { name: 'giantCactus', w: 10, minCount: 8, obstacle: true },
-    { name: 'wideHole', w: 6, minCount: 10, obstacle: true },
+    { name: 'giantCactus', w: 10, obstacle: true },
+    { name: 'wideHole', w: 6, obstacle: true },
     // ジャンプすると当たるもの
-    { name: 'vulture', w: 9, minCount: 8, obstacle: true },
-    { name: 'vulture2', w: 4, minCount: 16, obstacle: true }
+    { name: 'vulture', w: 9, obstacle: true },
+    { name: 'vulture2', w: 4, obstacle: true },
+    // 障害物が続けて来る（遠くまで行くと出てくる）
+    { name: 'rockRock', w: 6, obstacle: true },
+    { name: 'holeRock', w: 5, obstacle: true }
   ];
 
   Game.prototype.pickPattern = function () {
     var list = [], total = 0;
-    var level = U.clamp(this.meters() / CFG.RAMP_DISTANCE, 0, 1); // 先に進むほど障害物が増える
+    var d = this.difficulty(), m = this.meters();
+    this.allowTwo = Math.random() < CFG.DIFF_TWO_IN_ROW * d;
     for (var i = 0; i < PATTERNS.length; i++) {
       var pt = PATTERNS[i];
       if (pt.minCount && this.spawned < pt.minCount) continue;
+      if (CFG.UNLOCK[pt.name] && m < CFG.UNLOCK[pt.name]) continue; // まだ出ない距離
       if (pt.name === this.lastPattern && pt.name === 'snake') continue; // ヘビ2連続はなし
-      if (pt.obstacle && this.lastObstacle) continue;                    // 障害物2連続はなし
-      var w = pt.w * (pt.obstacle ? 1 + CFG.OBSTACLE_RAMP * level : 1);
+      // 障害物の2連続：はじめは出ない。遠くへ行くほど出るようになる
+      if (pt.obstacle && this.lastObstacle && this.allowTwo === false) continue;
+      var w = pt.w * (pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1); // 先に進むほど障害物が増える
       list.push({ name: pt.name, w: w }); total += w;
     }
     var r = Math.random() * total;
@@ -373,6 +415,16 @@
           this.items.push(top);
         }
         return pre;
+      case 'rockRock':
+        // 岩が2つ：跳んで、着地して、すぐまた跳ぶ
+        var gap2 = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.95;
+        add(this, 'rock', x); add(this, 'rock', x + gap2);
+        return gap2;
+      case 'holeRock':
+        var hw2 = this.placeHole(x);
+        var gap3 = hw2 + Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 0.75;
+        add(this, 'cactus', x + gap3);
+        return gap3;
       case 'cactusBug':
         // サボテンを飛び越えた先に虫
         add(this, 'cactus', x);
@@ -434,7 +486,7 @@
       this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture/.test(name);
       if (this.lastObstacle) this.seenObstacle = true;
       this.spawned++;
-      this.nextSpawnX += len + v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX);
+      this.nextSpawnX += len + v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX) * (1 - CFG.DIFF_GAP * this.difficulty());
     }
   };
 
@@ -456,6 +508,36 @@
       maxCombo: this.maxCombo,
       time: this.time
     };
+  };
+
+  /** タカの近さ（0〜1）。遅いほど1に近い */
+  Game.prototype.danger = function () {
+    if (this.demo) return 0;
+    if (this.over) return 1;
+    return U.clamp(1 - this.speed / CFG.HAWK_SAFE_SPEED, 0, 1);
+  };
+
+  /** 急降下〜連れ去りのタカの位置（ゲーム内の座標、体の中心） */
+  Game.prototype.hawkPos = function () {
+    var p = this.player, T = CFG.HAWK_DIVE_TIME;
+    if (this.catchT < T) {
+      var k = this.catchT / T, e = k * k;
+      var tx = p.x - 6, ty = p.y - 120;
+      return {
+        x: U.lerp(this.hawkFrom.x, tx, e), y: U.lerp(this.hawkFrom.y, ty, e),
+        dive: k < 0.75 ? 1 : 1 - (k - 0.75) / 0.25, talons: k > 0.6,
+        angle: k < 0.75 ? 0.75 : 0.75 * (1 - (k - 0.75) / 0.25)
+      };
+    }
+    var u = (this.catchT - T) / CFG.HAWK_CARRY_TIME;
+    var c = this.hawkCatchAt || { x: p.x, y: p.y - 120 };
+    return { x: c.x + u * 380, y: c.y - u * 160 - u * u * 820, dive: 0, talons: true, angle: -0.3 };
+  };
+
+  /** 難しさ（0〜1）。距離が伸びるほど1に近づく */
+  Game.prototype.difficulty = function () {
+    if (this.demo) return 0;
+    return 1 - Math.exp(-this.meters() / CFG.DIFF_DISTANCE);
   };
 
   /** 今の距離（メートル） */
@@ -513,6 +595,10 @@
       ctx.restore();
     }
     p.draw(ctx, this.speedN());
+    if (this.over) {
+      var hk = this.hawkPos();
+      DD.drawHawk(ctx, hk.x, hk.y, { t: this.time, dive: hk.dive, talons: hk.talons, angle: hk.angle, scale: 1.3 });
+    }
     this.fx.drawFront(ctx);
 
     // 画面の座標に戻して集中線・フラッシュ
@@ -522,6 +608,8 @@
       var g0 = cam.toScreen(p.x, 0);
       var lane = { x: g0.x - 30 * cam.scale, y0: g0.y - 230 * cam.scale, y1: g0.y + 16 * cam.scale };
       this.fx.drawSpeedLines(ctx, W, H, ps.x, ps.y, this.speedN(), lane);
+      var shadowK = this.over ? Math.max(0, 1 - this.catchT * 3) : 1; // 本物が来たら影は消える
+      DD.drawHawkShadow(ctx, W, H, g0.y, g0.x, this.shadow * shadowK, this.time);
       this.drawMarkers(ctx, dpr);
     }
     if (this.fx.flash > 0) {
