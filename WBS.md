@@ -324,3 +324,11 @@
   - ゴール「DUST DASH で タカから にげきった！🏁 …」、エンドレス「DUST DASH エンドレスで ○m 走った！ …」
 - [x] スマホ：共有シート（画像つき）を開く → X アプリを選べば画像と文章で投稿できる。共有シートが使えないとき（PC など）は X の投稿画面を開く（文章入り）。
 - [ ] ゲームを一般に公開したら、その URL を config.js の SHARE_URL に書く（シェアの文章に URL が入る）。公開前は URL なし。
+
+### AA 公開の準備（GitHub Pages）
+- [x] 公開先は GitHub Pages（無料・全画面・短い URL・リンクの画像表示ができる）→ https://ayumu1111.github.io/DUST-DASH/
+- [x] X にリンクを貼ったときの大きな画像（assets/ogp.png、1200×630）と表示の設定（og: / twitter: のタグ）
+- [x] アイコン（ブラウザのタブ・スマホのホーム画面に追加したとき）
+- [x] シェアの文章に公開 URL が入る（config.js の SHARE_URL）
+- [x] .nojekyll（GitHub Pages がファイルをそのまま出すように）
+- [ ] GitHub の設定で「公開（Public）」と「Pages をこのブランチから」をオンにする（手順は README.md の「公開のしかた」）

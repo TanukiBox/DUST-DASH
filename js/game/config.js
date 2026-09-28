@@ -163,7 +163,7 @@
     },
     MILESTONE: 250,
     // ---- シェア ----
-    SHARE_URL: '',            // ゲームを公開したら、ここにその URL を書く（例 'https://〇〇.github.io/DUST-DASH/'）           // この距離ごとに「○m 突破！」を出す
+    SHARE_URL: 'https://ayumu1111.github.io/DUST-DASH/', // ゲームを公開している URL（GitHub Pages）。シェアの文章に入る           // この距離ごとに「○m 突破！」を出す
 
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）
