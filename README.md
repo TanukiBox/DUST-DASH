@@ -39,8 +39,10 @@
 | `tools/build-single.js` | 全部を1つの HTML にまとめる道具（`node tools/build-single.js` → `dist/dust-dash.html`） |
 
 ## 公開のしかた（GitHub Pages・無料）
-1. GitHub のリポジトリの Settings → General のいちばん下「Change repository visibility」で **Public（公開）** にする。
+- このリポジトリは GitHub の組織 **TanukiBox** にある（TanukiBox/DUST-DASH）。
+- ゲームの URL：https://tanukibox.github.io/DUST-DASH/ 。Tanuki Box のトップページ（https://tanukibox.github.io/ 、リポジトリ TanukiBox/tanukibox.github.io）からリンクしている。
+1. リポジトリの Settings → General のいちばん下「Change repository visibility」で **Public（公開）** にする。
 2. Settings → Pages → Build and deployment の Source を **Deploy from a branch** にして、Branch を今のブランチ（`claude/dust-dash-browser-game-kqs6r0`）、フォルダを **/(root)** にして Save。
-3. 1〜2分待つと https://ayumu1111.github.io/DUST-DASH/ で遊べる。以後、このブランチに push すると自動で更新される。
+3. 1〜2分待つと https://tanukibox.github.io/DUST-DASH/ で遊べる。以後、このブランチに push すると自動で更新される。
 - X にリンクを貼ると、`assets/ogp.png` の画像つきで大きく表示される（`index.html` の og: / twitter: の設定）。
 - シェアの文章に入る URL は `js/game/config.js` の `SHARE_URL`。

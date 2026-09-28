@@ -119,7 +119,12 @@
         app.store.set('mode', currentMode(app) === 'goal' ? 'endless' : 'goal');
         app.store.set('modeSeen', true);
       } };
-      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn]);
+      // 「Tanuki Box」を押すと、ほかのゲームがならぶトップページを開く
+      this.siteBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+        app.sfx.play('ui');
+        try { var w = global.open(DD.CFG.SITE_URL, '_blank'); if (w) w.opener = null; } catch (e) { /* 開けなくても遊びは続ける */ }
+      } };
+      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn, this.siteBtn]);
       app.bgm.play('title');
     },
     update: function (app, dt) {
@@ -211,6 +216,8 @@
       place(app, this.storyBtn, sb);
 
       D.text(ctx, T('credit'), cx, ui.h - ui.safeBottom - 22, { size: 18, fill: COL.cream, lw: 4 });
+      var cw = D.measure(ctx, T('credit'), 18) + 24;
+      place(app, this.siteBtn, { x: cx - cw / 2, y: ui.h - ui.safeBottom - 40, w: cw, h: 34 });
     },
     press: function (app) {
       if (this.t < 0.3) return;

@@ -161,9 +161,10 @@
       rockRock: 600, holeRock: 800,
       stepUp: 60, stepDown: 60, islands: 150, overhang: 250, whirl: 120, tumble: 0
     },
-    MILESTONE: 250,
+    MILESTONE: 250,           // この距離ごとに「○m 突破！」を出す
     // ---- シェア ----
-    SHARE_URL: 'https://ayumu1111.github.io/DUST-DASH/', // ゲームを公開している URL（GitHub Pages）。シェアの文章に入る           // この距離ごとに「○m 突破！」を出す
+    SHARE_URL: 'https://tanukibox.github.io/DUST-DASH/', // ゲームを公開している URL（GitHub Pages）。シェアの文章に入る
+    SITE_URL: 'https://tanukibox.github.io/',            // Tanuki Box のトップページ（タイトルの「Tanuki Box」から開く）
 
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）
