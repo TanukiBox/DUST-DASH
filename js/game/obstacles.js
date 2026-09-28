@@ -411,6 +411,42 @@
   };
 
   // ------------------------------------------------------------
+  // 回転草（タンブルウィード）：砂あらしで、こちらへ転がってくる。ジャンプでよける
+  // ------------------------------------------------------------
+  DD.KINDS.tumble = {
+    create: function (x, y) {
+      return { type: 'tumble', obstacle: true, moving: true, x: x, y: y || 0, baseY: y || 0, w: 50, h: 48, vx: -CFG.TUMBLE_VX, t: Math.random() * 3, rot: 0, dead: false };
+    },
+    update: function (o, dt) {
+      o.t += dt;
+      o.x += o.vx * dt;
+      o.rot += o.vx * dt / 24;
+      o.y = o.baseY - Math.abs(Math.sin(o.t * 4.2)) * 18; // ぽんぽん弾みながら
+    },
+    draw: function (ctx, o) {
+      var r = o.h / 2;
+      ctx.save();
+      ctx.translate(o.x, o.y - r);
+      ctx.rotate(o.rot);
+      D.oval(ctx, 0, 0, r, r, 0, 'rgba(201, 148, 88, 0.55)', 3.5);
+      // からまった枝
+      ctx.strokeStyle = '#8a5a32'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      for (var i = 0; i < 7; i++) {
+        var a = i * 0.9;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35, r * 0.62, a, a + 2.2);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#c9985e'; ctx.lineWidth = 2;
+      for (i = 0; i < 5; i++) {
+        var b = i * 1.3 + 0.4;
+        ctx.beginPath(); ctx.arc(Math.cos(b) * r * 0.2, Math.sin(b) * r * 0.2, r * 0.8, b, b + 1.4); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+
+  // ------------------------------------------------------------
   // 穴：地面を描いた後に上から描く
   // ------------------------------------------------------------
   DD.drawHole = function (ctx, hole, bottom) {

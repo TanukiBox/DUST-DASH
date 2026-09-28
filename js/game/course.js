@@ -170,7 +170,7 @@
   /** 念のため：障害物に重なるコインは消す（取れないコインを残さない） */
   Course.prototype.clearCoinsInObstacles = function (from) {
     var items = this.g.items, obs = [];
-    for (var i = from; i < items.length; i++) if (items[i].obstacle && !items[i].flying && !items[i].ceiling) obs.push(items[i]);
+    for (var i = from; i < items.length; i++) if (items[i].obstacle && !items[i].flying && !items[i].ceiling && !items[i].moving) obs.push(items[i]);
     for (i = items.length - 1; i >= from; i--) {
       var c = items[i];
       if (!c.coin) continue;
@@ -226,6 +226,19 @@
       case 'rock':
         this.run(lead, groundCoins); this.jump();
         this.obstacleAtApex(name);
+        this.land();
+        break;
+      case 'tumble':
+        // 回転草：ジャンプの一番高い所で真下を通るように、先の方から転がしてくる
+        this.run(lead, groundCoins); this.jump();
+        var tx = this.toApex(), tfl = this.jumpFloor;
+        var vNow = Math.max(g.speed, 35) * CFG.UNITS_PER_KMH;
+        var sx2 = tx + CFG.TUMBLE_VX * Math.max(0, (tx - g.player.x) / vNow);
+        var flat2 = true;
+        for (var qx2 = tx - 40; qx2 <= sx2 + 40; qx2 += 16) { if (g.floorAt(qx2, true) !== tfl) { flat2 = false; break; } }
+        var tw = flat2 ? DD.KINDS.tumble.create(sx2, tfl) : DD.createItem('rock', tx);
+        tw.y = tw.baseY = tfl;
+        g.items.push(tw);
         this.land();
         break;
       case 'giantCactus':
@@ -363,6 +376,10 @@
         this.shape(U.pick(['heart', 'diamond', 'block', 'star']), ax2, ay2);
         this.land();
         this.run(v * 0.2, true);
+        break;
+      case 'rest':
+        // ステージの切れ目：まっすぐな道に地面のコインだけ
+        this.run(Math.max(60, g.restTo - gh.x), true);
         break;
       case 'finale':
         // ゴールへの最後の直線：地面の高さへもどして、コインの道。ゴール門を置く

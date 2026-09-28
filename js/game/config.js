@@ -83,19 +83,21 @@
     COMBO_BONUS: 2,           // コンボ3以上で、1回踏むごとに コンボ数×これ のコイン
     PERFECT_BONUS: 10,        // 並びを全部食べたとき、1匹につき これ のコイン
     WHIRL_V: 1750,            // つむじ風で飛ばされる勢い
+    TUMBLE_VX: 170,           // 回転草がこちらへ転がってくる速さ
     CEILING_CLEAR: 118,       // 岩のひさしの下のすきま（走っていればくぐれる高さ）
     // ステージの特色：並びの出やすさの倍率
     STAGE_BIAS: {
-      desert:   { chain: 1.2 },
-      canyon:   { overhang: 2.5, islands: 1.6, stepUp: 1.3 },
-      salt:     { hole: 1.6, holeBug: 1.5, wideHole: 1.3 },
-      cactus:   { cactus: 1.8, cactusBug: 1.6, giantCactus: 1.6 },
-      sunset:   { stepUp: 1.5, stepDown: 1.5, giantCactus: 1.5 },
-      storm:    { vulture: 1.5, rockRock: 1.5, rock: 1.3 },
-      night:    { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 },
-      moonrock: { overhang: 2.2, islands: 1.5, stepUp: 1.4 },
-      predawn:  { chain: 1.3, islands: 1.3, wideHole: 1.3, holeRock: 1.3 },
-      oasis:    { chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4 }
+    // tumble（回転草）はここに書いたステージにしか出ない
+      desert:   { bugGround: 1.6, bugAir: 1.5, chain: 1.4, overhang: 0 },
+      canyon:   { overhang: 3.0, islands: 1.8, stepUp: 1.5 },
+      salt:     { hole: 2.2, holeBug: 2.0, wideHole: 1.8, stepUp: 0.4, stepDown: 0.4, overhang: 0 },
+      cactus:   { cactus: 2.4, cactusBug: 2.2, giantCactus: 2.2, overhang: 0 },
+      sunset:   { stepUp: 2.0, stepDown: 2.0, islands: 1.6, giantCactus: 1.3 },
+      storm:    { tumble: 6, rock: 1.2, rockRock: 1.2, cactus: 0.4, giantCactus: 0.6 },
+      night:    { bugAir: 2.2, chain: 1.8, vulture: 1.4, wideHole: 1.4 },
+      moonrock: { overhang: 3.0, islands: 2.0, stepUp: 1.5 },
+      predawn:  { vulture: 2.2, vulture2: 2.2, wideHole: 1.4, holeRock: 1.3 },
+      oasis:    { tumble: 1.2, chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4, overhang: 1.5 }
     },
 
     // ---- 地形（高い足場）----
@@ -152,7 +154,7 @@
       snake: 30, cactus: 40, rock: 40, hole: 80, holeBug: 80, cactusBug: 100,
       giantCactus: 150, vulture: 200, wideHole: 350, vulture2: 500,
       rockRock: 600, holeRock: 800,
-      stepUp: 60, stepDown: 60, islands: 150, overhang: 250, whirl: 120
+      stepUp: 60, stepDown: 60, islands: 150, overhang: 250, whirl: 120, tumble: 0
     },
     MILESTONE: 250,           // この距離ごとに「○m 突破！」を出す
 

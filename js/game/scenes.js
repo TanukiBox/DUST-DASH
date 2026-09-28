@@ -236,17 +236,28 @@
       this.comboPop = 0;
       this.banner = null;
       this.feverBanner = this.game.fever > 0 ? { text: T('startDash'), t: 0 } : null;
+      this.map = null; // マップ移動画面（ステージが変わったとき）
       app.setButtons([]);
     },
     update: function (app, dt) {
       var g = this.game;
+      // マップ移動画面の間は、ゲームを止めておく
+      if (this.map) {
+        this.map.t += dt;
+        if (this.map.t >= DD.MAP_LEN) this.map = null;
+        return;
+      }
       g.update(dt, app.W, app.H);
       var played = {};
       for (var i = 0; i < g.events.length; i++) {
         var e = g.events[i];
         if (e === 'jump') this.hint.jumped = true;
         if (e === 'combo') this.comboPop = 1;
-        if (e === 'stage') this.banner = { stage: g.stage, t: 0 };
+        if (e === 'stage') {
+          // ゴールをめざすモード：マップ移動画面。エンドレス：今までどおりのリボン
+          if (g.endless) this.banner = { stage: g.stage, t: 0 };
+          else this.map = { from: g.stage - 1, to: g.stage, t: 0 };
+        }
         if (e === 'fever') this.feverBanner = { text: T('fever'), t: 0 };
         if (e === 'stage') app.bgm.setStage(g.stage);
         if (e === 'goal') { this.feverBanner = { text: T('goal'), t: 0 }; app.bgm.stop(0.3); }
@@ -272,6 +283,7 @@
       this.drawHints(app, ctx, g);
       this.drawBanner(app, ctx);
       this.drawFeverBanner(app, ctx);
+      if (this.map) DD.drawMapTransition(app, ctx, this.map);
     },
     /** 「フィーバー！」：虹色でぽよんと出る */
     drawFeverBanner: function (app, ctx) {
@@ -333,7 +345,7 @@
     },
     drawHints: function (app, ctx, g) {
       var ui = app.ui, h = this.hint, text = null;
-      if (this.banner || this.feverBanner) return; // 「○m 突破！」と重ならないように
+      if (this.banner || this.feverBanner || this.map) return; // 「○m 突破！」と重ならないように
       if (h.special && g.time < h.special.until) text = h.special.text;
       else if (!this.tutorial) text = null;
       else if (!h.jumped && g.time < 6) text = T('hintJump');
@@ -349,7 +361,14 @@
       D.text(ctx, text, 0, 0, { size: size, fill: COL.white, maxW: ui.w - 32 });
       ctx.restore();
     },
-    press: function (app) { this.game.press(); }
+    press: function (app) {
+      if (this.map) {
+        // マップ移動画面：少し見てからタップで先へ（ジャンプにはしない）
+        if (this.map.t > 0.8 && this.map.t < DD.MAP_LEN - 0.3) this.map.t = DD.MAP_LEN - 0.3;
+        return;
+      }
+      this.game.press();
+    }
   };
 
   /** 画面上のスタミナ・速度・距離 */

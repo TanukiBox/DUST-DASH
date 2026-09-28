@@ -76,10 +76,10 @@
     // 穴に落ちたときは、カメラの引き具合をその時のままにする（急にズームしないように）
     this.cam.fit(W, H, this.demo ? 0 : this.fell ? this.fellN : this.speedN());
     this.visScale = 1 + (this.cam.zoom - 1) * CFG.PREY_ZOOM_COMP;
+    // 踏んだ瞬間は一瞬スローに（完全に止めると、画面がカクっと引っかかって見えるため）
     if (this.hitStop > 0) {
       this.hitStop -= dt;
-      this.fx.update(dt * 0.25);
-      return;
+      dt *= 0.2;
     }
     var left = dt;
     while (left > 1e-6) {
@@ -604,6 +604,8 @@
     { name: 'islands', w: 14, terrain: true, obstacle: true },
     // 上からの障害物
     { name: 'overhang', w: 9, obstacle: true },
+    // 転がってくる回転草（砂あらしなど、決まったステージだけ）
+    { name: 'tumble', w: 22, obstacle: true, stageOnly: true },
     { name: 'holeRock', w: 5, obstacle: true }
   ];
 
@@ -621,11 +623,12 @@
       if (pt.name === 'stepUp' && lvl < CFG.FLOOR_MIN + 70) continue;
       if (pt.name === this.lastPattern && pt.name === 'snake') continue; // ヘビ2連続はなし
       // 障害物の2連続：はじめは出ない。遠くへ行くほど出るようになる
-      if (pt.obstacle && this.lastObstacle && this.allowTwo === false) continue;
+      if (pt.obstacle && !pt.stageOnly && this.lastObstacle && this.allowTwo === false) continue; // ステージの名物（回転草）は続いてもよい
       var w = pt.w * (pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1); // 先に進むほど障害物が増える
       // ステージの特色（峡谷はひさし・足場が多い など）
       var bias = CFG.STAGE_BIAS[DD.stageAt(Math.floor(m / CFG.STAGE_M), this.endless).key];
-      if (bias && bias[pt.name]) w *= bias[pt.name];
+      if (pt.stageOnly && !(bias && bias[pt.name])) continue;
+      if (bias && bias[pt.name] !== undefined) w *= bias[pt.name];
       if (pt.name === 'stepDown') w *= 1 + (-lvl) / 60;
       list.push({ name: pt.name, w: w }); total += w;
     }
@@ -653,7 +656,11 @@
     }
     while (c.gh.x < edge) {
       var name;
-      if (c.gh.x > this.goalX - Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 3) name = 'finale'; // ゴール前は平らな道
+      // ステージの切れ目の前後は、障害物のない「ひと休み」の道（マップ画面で止まっても大丈夫なように）
+      var bx = (Math.floor(c.gh.x / (CFG.STAGE_M * 36)) + 1) * CFG.STAGE_M * 36;
+      var vv = Math.max(this.speed, 35) * CFG.UNITS_PER_KMH;
+      if (c.gh.x > this.goalX - vv * 3) name = 'finale'; // ゴール前は平らな道
+      else if (!this.endless && c.gh.x > bx - vv * 2.2) { name = 'rest'; this.restTo = bx + vv * 1.3; }
       else if (this.fever > 0.8) name = 'feverCoins';
       else if (this.sinceReward >= (this.rewardEvery || 3) && this.meters() > 60) {
         // ごほうび区間：障害物のない、コインや獲物がたくさんの並び
@@ -666,7 +673,7 @@
       }
       c.build(name);
       this.lastPattern = name;
-      this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture|islands|overhang/.test(name);
+      this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture|islands|overhang|tumble/.test(name);
       this.spawned++;
       c.gap(v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX) * (1 - CFG.DIFF_GAP * this.difficulty()));
       this.nextSpawnX = c.gh.x;
@@ -676,7 +683,9 @@
   Game.prototype.cull = function () {
     var left = this.cam.x - 200;
     for (var i = this.items.length - 1; i >= 0; i--) {
-      if (this.items[i].dead || this.items[i].x + (this.items[i].cullPad || 0) < left) this.items.splice(i, 1);
+      // 右はしが画面の左の外に出てから消す（横に長い岩のひさしが、途中で急に消えないように）
+      var ci = this.items[i];
+      if (ci.dead || ci.x + (ci.w || 0) * this.scaleOf(ci) / 2 + (ci.cullPad || 0) < left) this.items.splice(i, 1);
     }
     for (i = this.holes.length - 1; i >= 0; i--) {
       if (this.holes[i].x1 < left) this.holes.splice(i, 1);
@@ -779,8 +788,13 @@
     DD.drawGroundTint(ctx, cam, sky);
     cam.apply(ctx, dpr, sh.x, sh.y);
 
-    // 影
     var p = this.player, vs = this.visScale;
+    // ステージの特色の演出（塩の湖の映りこみ・夜のホタル・夜明け前の霧）
+    var wSalt = stageWeight(sky, 'salt'), wNight = Math.max(stageWeight(sky, 'night'), stageWeight(sky, 'moonrock')), wFog = stageWeight(sky, 'predawn');
+    if (wSalt > 0.01) this.drawReflection(ctx, bnd, wSalt);
+    if (wFog > 0.01) drawFog(ctx, bnd, wFog, this.time);
+
+    // 影
     var pf = this.floorAt(p.x);
     if (pf !== null) DD.drawShadow(ctx, p.x + 2, p.y, pf, 26);
     for (i = 0; i < this.items.length; i++) {
@@ -792,11 +806,13 @@
     }
 
     this.fx.drawDust(ctx);
-    // 速いときは獲物のまわりをふわっと光らせて見つけやすく
-    var glow = U.clamp((this.speed - CFG.GLOW_FROM) / (CFG.GLOW_FULL - CFG.GLOW_FROM), 0, 1);
+    // 速いときは獲物のまわりをふわっと光らせて見つけやすく（夜は虫がホタルのように光る）
+    var glow0 = U.clamp((this.speed - CFG.GLOW_FROM) / (CFG.GLOW_FULL - CFG.GLOW_FROM), 0, 1);
+    if (wNight > 0.01) drawFireflies(ctx, bnd, wNight, this.time);
     for (i = 0; i < this.items.length; i++) {
       it = this.items[i];
       if (it.dead) continue;
+      var glow = it.type === 'bug' ? Math.max(glow0, wNight * (0.75 + 0.25 * Math.sin(this.time * 6 + it.x))) : glow0;
       if (glow > 0 && it.prey && !it.noEat) {
         var gy = it.y - it.h * vs / 2, gr = Math.max(it.w, it.h) * vs * 0.95;
         var grad = ctx.createRadialGradient(it.x, gy, gr * 0.2, it.x, gy, gr);
@@ -849,6 +865,85 @@
       ctx.fillRect(0, 0, W, H);
     }
   };
+
+  /** 景色の中で、そのステージがどれくらい混ざっているか（0〜1。切りかわりの途中はまん中） */
+  function stageWeight(sky, key) {
+    return (sky.a.key === key ? 1 - sky.t : 0) + (sky.b.key === key ? sky.t : 0);
+  }
+
+  /** 塩の湖：地面が鏡のように、主人公や獲物をうっすら映す */
+  Game.prototype.drawReflection = function (ctx, bnd, w) {
+    var self = this;
+    ctx.save();
+    // 地面（高さ0）の少し下だけに映す。高い足場のところは映さない
+    ctx.beginPath();
+    ctx.rect(bnd.left - 50, 2, bnd.right - bnd.left + 100, 150);
+    for (var i = 0; i < this.floors.length; i++) {
+      var f = this.floors[i];
+      ctx.rect(Math.max(f.x0, bnd.left - 50), 2, Math.min(f.x1, bnd.right + 50) - Math.max(f.x0, bnd.left - 50), 150);
+    }
+    for (i = 0; i < this.holes.length; i++) {
+      var h = this.holes[i];
+      if (!h.y) ctx.rect(h.x0, 2, h.x1 - h.x0, 150);
+    }
+    ctx.clip('evenodd');
+    ctx.globalAlpha = 0.22 * w;
+    ctx.scale(1, -1); // 地面の線で上下を反対に
+    for (i = 0; i < this.items.length; i++) {
+      var it = this.items[i];
+      if (it.dead || it.ceiling || it.deco || it.x < bnd.left - 80 || it.x > bnd.right + 80) continue;
+      if (this.levelAt(it.x) !== 0) continue;
+      var sc = this.scaleOf(it);
+      ctx.save(); ctx.translate(it.x, it.y); ctx.scale(sc, sc); ctx.translate(-it.x, -it.y);
+      DD.KINDS[it.type].draw(ctx, it);
+      ctx.restore();
+    }
+    if (this.levelAt(this.player.x) === 0) this.player.draw(ctx, this.speedN());
+    ctx.restore();
+    // 塩のきらめき
+    ctx.save();
+    ctx.globalAlpha = w;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    for (var k = Math.floor(bnd.left / 90); k * 90 < bnd.right; k++) {
+      var tw = Math.sin(self.time * 3 + k * 1.7);
+      if (tw < 0.6) continue;
+      var sx = k * 90 + U.hash(k) * 60, sy = 12 + U.hash(k + 5) * 60, r = (tw - 0.6) * 10;
+      ctx.beginPath(); ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r * 0.3, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r * 0.3, sy); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx - r, sy); ctx.lineTo(sx, sy + r * 0.3); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy - r * 0.3); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  /** 夜のホタル：画面のあちこちで、ふわふわ光る */
+  function drawFireflies(ctx, bnd, w, t) {
+    ctx.save();
+    for (var k = Math.floor(bnd.left / 140) - 1; k * 140 < bnd.right + 140; k++) {
+      var x = k * 140 + U.hash(k * 3.1) * 120 + Math.sin(t * 0.9 + k) * 30;
+      var y = -40 - U.hash(k * 7.3) * 260 + Math.sin(t * 1.3 + k * 2) * 20;
+      var a = (0.5 + 0.5 * Math.sin(t * 3 + k * 1.9)) * w;
+      var g = ctx.createRadialGradient(x, y, 0, x, y, 16);
+      g.addColorStop(0, 'rgba(230, 255, 140, ' + (0.9 * a).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(230, 255, 140, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** 夜明け前の霧：地面の上を白い霧がゆっくり流れる */
+  function drawFog(ctx, bnd, w, t) {
+    ctx.save();
+    for (var L = 0; L < 3; L++) {
+      var y = -20 - L * 60, a = (0.22 - L * 0.05) * w;
+      ctx.fillStyle = 'rgba(230, 225, 255, ' + a.toFixed(3) + ')';
+      var off = t * (30 + L * 20);
+      for (var k = Math.floor((bnd.left + off) / 260) - 1; k * 260 < bnd.right + off + 260; k++) {
+        var x = k * 260 - off + U.hash(k + L * 10) * 80;
+        ctx.beginPath(); D.ellipse(ctx, x, y, 170 + U.hash(k) * 60, 34 + L * 8, 0); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
 
   /**
    * 画面の右はしに「もうすぐ来る」印。速いときだけ出す。

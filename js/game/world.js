@@ -12,6 +12,7 @@
   function Camera() {
     this.x = 0;           // 画面左端のゲーム内 x
     this.y = 0;           // 地面の線に来るゲーム内 y（高く跳ぶと上へずれる）
+    this.vy = 0;          // 上下に動く速さ（ばねのように、なめらかに動き出して止まる）
     this.zoom = 1;
     this.anchor = CFG.PLAYER_SCREEN_X;
   }
@@ -35,7 +36,10 @@
     // 高い足場にいるときは画面も上へ。高く跳んだら追いかける（頭の上に少し余白）
     var room = this.groundY / this.scale;
     var target = Math.min((floorY || 0) * 0.8, py - 150 + room - 60);
-    this.y += (target - this.y) * Math.min(1, dt * 7);
+    // 目標へ「ばね」で近づく（急に動き出すと画面がカクっと見えるため。行きすぎないちょうどの強さ）
+    var w = 7, d = Math.min(dt, 1 / 30);
+    this.vy += (w * w * (target - this.y) - 2 * w * this.vy) * d;
+    this.y += this.vy * d;
   };
 
   Camera.prototype.apply = function (ctx, dpr, sx, sy) {

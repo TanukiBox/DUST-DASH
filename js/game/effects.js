@@ -219,7 +219,8 @@
       // 走る道すじ（獲物が来るところ）には線を引かない
       ctx.beginPath();
       ctx.rect(0, 0, w, h);
-      D.roundRect(ctx, lane.x, lane.y0, w - lane.x + 40, lane.y1 - lane.y0, 40);
+      var lw2 = w - lane.x + 40;
+      if (lw2 > 0 && lane.y1 > lane.y0) D.roundRect(ctx, lane.x, lane.y0, lw2, lane.y1 - lane.y0, 40);
       ctx.clip('evenodd');
     }
     ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.25 + power * 0.45).toFixed(3) + ')';
