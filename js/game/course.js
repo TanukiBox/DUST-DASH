@@ -226,10 +226,11 @@
       case 'rock':
         this.run(lead, groundCoins); this.jump();
         this.obstacleAtApex(name);
+        this.descentPrey(0.45);
         this.land();
         break;
       case 'tumble':
-        this.run(lead, groundCoins); this.jump(); this.tumbleAtApex(); this.land();
+        this.run(lead, groundCoins); this.jump(); this.tumbleAtApex(); this.descentPrey(0.5, true); this.land();
         break;
 
       // ---- ステージの名物 ----
@@ -237,7 +238,7 @@
         // 砂あらし：回転草の群れ。リズムよく跳び続ける
         n = 2 + ((Math.random() * 2) | 0);
         this.run(lead, groundCoins);
-        for (k = 0; k < n; k++) { this.jump(); this.tumbleAtApex(); this.land(); if (k < n - 1) this.run(v * U.rand(0.12, 0.2), true); }
+        for (k = 0; k < n; k++) { this.jump(); this.tumbleAtApex(); this.descentPrey(0.45, true); this.land(); if (k < n - 1) this.run(v * U.rand(0.12, 0.2), true); }
         break;
       case 'whirlWall':
         // サボテンの森：2段ジャンプでも越えられないサボテンの壁。手前のつむじ風に乗って越える
@@ -257,6 +258,7 @@
         this.toApex();
         this.bigAtApex(mkw, 'emerald');
         this.preyHere('bug', U.rand(240, 300), wwf);
+        this.preyHere('bug', U.rand(110, 160), wwf);
         this.land();
         this.run(v * 0.25, true);
         break;
@@ -264,7 +266,7 @@
         // サボテンの森：サボテンが3つ続く
         this.run(lead, groundCoins);
         for (k = 0; k < 3; k++) {
-          this.jump(); this.obstacleAtApex(k === 1 && Math.random() < 0.5 ? 'rock' : 'cactus'); this.land();
+          this.jump(); this.obstacleAtApex(k === 1 && Math.random() < 0.5 ? 'rock' : 'cactus'); this.descentPrey(0.45); this.land();
           if (k < 2) this.run(v * U.rand(0.1, 0.18), true);
         }
         break;
@@ -273,7 +275,8 @@
         n = 3 + ((Math.random() * 2) | 0);
         this.run(lead, groundCoins);
         for (k = 0; k < n; k++) {
-          x0 = this.jump(); x1 = this.land(); this.hole(x0, x1, 0.5);
+          x0 = this.jump(); x1 = this.predictLand(); this.hole(x0, x1, 0.5);
+          this.toApex(); this.descentPrey(0.4, true); this.land();
           if (k < n - 1) this.run(v * U.rand(0.08, 0.14), true);
         }
         break;
@@ -287,7 +290,10 @@
         for (k = 0; k < 3; k++) {
           var sc0 = this.floor(), sc1 = Math.max(CFG.FLOOR_MIN, sc0 - U.rand(55, 75));
           if (sc1 >= sc0 - 20) break;
-          this.jump(); var sax = this.toApex(); this.setLevel(sax - 10, sc1); this.land();
+          this.jump(); var sax = this.toApex(); this.setLevel(sax - 10, sc1);
+          // 上の段に着く所に獲物（踏んで次の段へ）
+          if (Math.random() < 0.6 * CFG.PREY_WITH_OBSTACLE) { var wf0 = this.fixed; this.fixed = true; this.preyHere(Math.random() < 0.6 ? 'bug' : 'lizard', 0, sc1); this.fixed = wf0; }
+          this.land();
           this.run(v * U.rand(0.12, 0.2), true);
         }
         break;
@@ -295,7 +301,7 @@
         // 月夜の岩山：空から岩が落ちてくる（1〜2個）
         n = 1 + ((Math.random() * 2) | 0);
         this.run(lead, groundCoins);
-        for (k = 0; k < n; k++) { this.jump(); this.obstacleAtApex('fallRock'); this.land(); if (k < n - 1) this.run(v * U.rand(0.2, 0.3), true); }
+        for (k = 0; k < n; k++) { this.jump(); this.obstacleAtApex('fallRock'); this.descentPrey(0.5); this.land(); if (k < n - 1) this.run(v * U.rand(0.2, 0.3), true); }
         break;
       case 'vultureFlock':
         // 夜明け前の峡谷：霧の中からハゲワシの群れ（ジャンプせずに走りぬける）
@@ -311,6 +317,7 @@
           g.items.push(vk);
         }
         this.run(v * 0.15, false);
+        this.afterRunPrey(0.8);
         break;
       case 'bugSwarm':
       case 'fireflyTrail':
@@ -329,23 +336,27 @@
         // 2段ジャンプの一番高い所の真下に大サボテン
         this.run(lead, groundCoins); this.jump(); this.wait(0.3); this.double();
         this.obstacleAtApex('giantCactus');
+        this.descentPrey(0.5);
         this.land();
         this.bigAtApex(from, 'emerald');
         break;
       case 'hole':
-        this.run(lead, groundCoins); x0 = this.jump(); x1 = this.land();
+        this.run(lead, groundCoins); x0 = this.jump(); x1 = this.predictLand();
         this.hole(x0, x1, 0.55);
+        this.toApex(); this.descentPrey(0.35, true); this.land();
         break;
       case 'wideHole':
-        this.run(lead, groundCoins); x0 = this.jump(); this.wait(0.32); this.double(); x1 = this.land();
+        this.run(lead, groundCoins); x0 = this.jump(); this.wait(0.32); this.double(); x1 = this.predictLand();
         this.hole(x0, x1, 0.72, true);
+        this.toApex(); this.descentPrey(0.35, true); this.land();
         break;
       case 'holeBug':
         // 穴の上の虫を踏んで渡る
         this.run(lead, groundCoins); x0 = this.jump();
+        x1 = this.predictLand();
+        this.hole(x0, x1, 0.6); // 穴の幅はふつうのジャンプで決める（虫を踏みそこねても落ちない）
         this.preyHere('bug', U.rand(70, 110));
-        x1 = this.land();
-        this.hole(x0, x1, 0.6);
+        this.land();
         break;
       case 'cactusBug':
         // サボテンを越えて、下りてくる所に虫
@@ -355,12 +366,13 @@
         this.land();
         break;
       case 'rockRock':
-        this.run(lead, groundCoins); this.jump(); this.obstacleAtApex('rock'); this.land();
-        this.run(v * U.rand(0.18, 0.28), true); this.jump(); this.obstacleAtApex('rock'); this.land();
+        this.run(lead, groundCoins); this.jump(); this.obstacleAtApex('rock'); this.descentPrey(0.35); this.land();
+        this.run(v * U.rand(0.18, 0.28), true); this.jump(); this.obstacleAtApex('rock'); this.descentPrey(0.35); this.land();
         break;
       case 'holeRock':
-        this.run(lead, groundCoins); x0 = this.jump(); x1 = this.land(); this.hole(x0, x1, 0.55);
-        this.run(v * U.rand(0.2, 0.3), true); this.jump(); this.obstacleAtApex('cactus'); this.land();
+        this.run(lead, groundCoins); x0 = this.jump(); x1 = this.predictLand(); this.hole(x0, x1, 0.55);
+        this.toApex(); this.descentPrey(0.3, true); this.land();
+        this.run(v * U.rand(0.2, 0.3), true); this.jump(); this.obstacleAtApex('cactus'); this.descentPrey(0.35); this.land();
         break;
       case 'vulture':
       case 'vulture2':
@@ -382,6 +394,7 @@
           g.items.push(top);
         }
         this.run(v * 0.15, false);
+        this.afterRunPrey(0.45);
         break;
       // ---- 地形 ----
       case 'stepUp':
@@ -421,6 +434,8 @@
           var xs = Math.max(x0 + 80, xd - 50);
           this.g.holes.push({ x0: x0, x1: xs, y: lvFrom, island: true });
           this.setLevel(xs, to);
+          // 着地する足場の上に獲物（踏みそこねても、そのまま足場に下りられる）
+          if (Math.random() < 0.4 * CFG.PREY_WITH_OBSTACLE) { var wfI = this.fixed; this.fixed = true; this.preyHere(Math.random() < 0.6 ? 'bug' : 'lizard', 0, to); this.fixed = wfI; }
           this.land();
           this.run(v * U.rand(0.3, 0.55), true);
         }
@@ -434,6 +449,7 @@
         this.run(ol, true);
         g.items.push(DD.KINDS.overhang.create(ox0 + ol / 2, fl1 - CFG.CEILING_CLEAR, ol));
         this.run(v * 0.2, false);
+        this.afterRunPrey(0.45);
         break;
 
       // ---- ごほうび ----
@@ -463,8 +479,11 @@
         this.run(v * 0.2, true);
         break;
       case 'rest':
-        // ステージの切れ目：まっすぐな道に地面のコインだけ
-        this.run(Math.max(60, g.restTo - gh.x), true);
+        // ステージの切れ目：まっすぐな道に、地面のコインと、ひと休みのエサ
+        var restEnd = g.restTo;
+        this.run(v * 0.35, true);
+        if (gh.x < restEnd - v * 0.8) { this.jump(); this.preyHere('bug', 0); this.preyHere('bug', U.rand(40, 80)); this.land(); }
+        this.run(Math.max(60, restEnd - gh.x), true);
         break;
       case 'finale':
         // ゴールへの最後の直線：地面の高さへもどして、コインの道。ゴール門を置く
@@ -489,6 +508,52 @@
     }
     for (var pi = from; pi < g.items.length; pi++) if (!g.items[pi].pat) g.items[pi].pat = name; // 確認用：どの並びで置いたか
     this.clearCoinsInObstacles(from);
+  };
+
+  /**
+   * 今のジャンプで、踏まずにそのまま着地したらどこに下りるか（試しに走らせて、元にもどす）。
+   * 穴の幅はこれで決める → 穴の上の虫を踏みそこねても、ふつうのジャンプで越えられる
+   */
+  Course.prototype.predictLand = function () {
+    var gh = this.gh, save = { x: gh.x, y: gh.y, vy: gh.vy, air: gh.air, jumps: gh.jumps, boost: gh.boost, combo: gh.combo };
+    var n = this.g.items.length, nc = this.nextCoin, on = this.coinsOn, na = this.actions.length;
+    var x = this.land();
+    for (var k in save) gh[k] = save[k];
+    this.g.items.length = n; this.nextCoin = nc; this.coinsOn = on; this.actions.length = na;
+    return x;
+  };
+
+  /**
+   * 障害物を跳びこえた後の「下りてくる所」に獲物を置く（障害物とエサを共存させる）
+   * chance = 置く確率、airOnly = 空中の虫だけ（下が穴のときや、回転草が転がってくる所）
+   * 獲物を踏むとお手本も跳ね返るので、そのあとのコインの道すじも自然につながる
+   */
+  Course.prototype.descentPrey = function (chance, airOnly) {
+    if (Math.random() >= chance * CFG.PREY_WITH_OBSTACLE || !this.gh.air) return null;
+    var r = Math.random(), type, lift;
+    if (airOnly || r < 0.5) { type = 'bug'; lift = U.rand(airOnly ? 55 : 30, airOnly ? 110 : 90); }
+    else if (r < 0.88) { type = 'lizard'; lift = 0; }
+    else { type = 'snake'; lift = 0; }
+    var wasFixed = this.fixed;
+    this.fixed = true; // 置いた場所から動かさない（障害物の方へ走っていかないように）
+    var pr = this.preyHere(type, lift);
+    // ときどき、跳ね返った先にもう1匹（空中の虫）
+    if (pr && type !== 'snake' && Math.random() < 0.35) this.preyHere('bug', U.rand(50, 100));
+    this.fixed = wasFixed;
+    return pr;
+  };
+
+  /** 地面を走る区間（ハゲワシの下・ひさしの下）のあとに、跳んで1〜2匹を食べる */
+  Course.prototype.afterRunPrey = function (chance) {
+    if (Math.random() >= chance * CFG.PREY_WITH_OBSTACLE) return;
+    var n = Math.random() < 0.5 ? 1 : 2, v = this.speed();
+    this.run(v * U.rand(0.1, 0.18), true);
+    this.jump();
+    for (var k = 0; k < n; k++) {
+      var ty = Math.random() < 0.6 ? 'bug' : 'lizard';
+      this.preyHere(ty, ty === 'bug' && Math.random() < 0.5 ? U.rand(40, 90) : 0); // トカゲはいつも地面
+    }
+    this.land();
   };
 
   /** 回転草：ジャンプの一番高い所で真下を通るように、先の方から転がしてくる */

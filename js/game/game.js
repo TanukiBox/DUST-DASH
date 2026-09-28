@@ -671,7 +671,7 @@
       // 障害物の2連続：はじめは出ない。遠くへ行くほど出るようになる
       if (pt.obstacle && !pt.stageOnly && this.lastObstacle && this.allowTwo === false) continue; // ステージの名物（回転草）は続いてもよい
       // 先に進むほど障害物が増える（ステージの名物は、はじめからよく出る）
-      var w = pt.w * (pt.stageOnly ? 1 + 1.5 * d : pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1);
+      var w = pt.w * (pt.stageOnly ? 1 + 1.5 * d : pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : pt.terrain ? 1 : 1 + CFG.PREY_GROW * d);
       // ステージの特色（峡谷はひさし・足場が多い など）
       var bias = CFG.STAGE_BIAS[DD.stageAt(Math.floor(m / CFG.STAGE_M), this.endless).key];
       if (pt.stageOnly && !(bias && bias[pt.name])) continue;
