@@ -76,6 +76,7 @@
 
       // 空と遠景（夜明け）
       var sky = DD.skyAt(0);
+      DD.currentSky = sky;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       DD.drawSky(ctx, W, H, cam.groundY, sky, t);
       DD.drawBackdrop(ctx, cam, sky);

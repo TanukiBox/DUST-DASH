@@ -36,7 +36,7 @@
       } else {
         // ときどき小さく跳ねる
         b.hop = (b.t % 1.6);
-        b.y = b.hop < 0.35 ? -Math.sin(b.hop / 0.35 * Math.PI) * 14 : 0;
+        b.y = b.baseY - (b.hop < 0.35 ? Math.sin(b.hop / 0.35 * Math.PI) * 14 : 0);
       }
     },
     draw: function (ctx, b) {

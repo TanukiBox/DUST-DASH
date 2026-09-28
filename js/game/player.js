@@ -31,6 +31,7 @@
     this.wingFlap = 0;
     this.blink = 0;
     this.extraVX = 0;      // 穴から飛び出すときの追加の横移動
+    this.flip = 0;         // 宙返りの残り（1→0）
     this.events = [];      // 'jump' | 'double' | 'land'（演出・効果音用）
   };
 
@@ -55,6 +56,7 @@
       this.launch(CFG.DOUBLE_JUMP_V);
       this.jumps = 2;
       this.wingFlap = 1;
+      this.flip = 1; // くるっと宙返り
       this.events.push('double');
       return true;
     }
@@ -84,24 +86,29 @@
     else if (this.vy < 0) this.vy *= 0.3;
   };
 
-  /** ground(x) は、その場所に地面があるか（穴なら false） */
+  /** ground(x) は、その場所の地面の高さ（上がマイナス。穴なら null） */
   Player.prototype.update = function (dt, speed, ground) {
     this.time += dt;
     this.prevY = this.y;
     this.x += (speed * CFG.UNITS_PER_KMH + this.extraVX) * dt;
+    var fy = ground ? ground(this.x) : 0;
 
-    // 穴の上に来たら落ちはじめる（少しの間は地上ジャンプできる）
-    if (this.onGround && ground && !ground(this.x)) {
-      this.onGround = false;
-      this.vy = 0;
-      this.coyote = CFG.COYOTE_TIME;
+    if (this.onGround) {
+      if (fy === null || fy > this.y + 3) {
+        // 穴や、低い所へ下りる段差：落ちはじめる（少しの間は地上ジャンプできる）
+        this.onGround = false;
+        this.vy = 0;
+        this.coyote = CFG.COYOTE_TIME;
+      } else {
+        this.y = fy;
+      }
     }
     if (!this.onGround) {
       this.vy += (this.vy < 0 ? CFG.GRAVITY_UP : CFG.GRAVITY_DOWN) * dt;
       this.y += this.vy * dt;
-      if (this.y >= 0 && this.y < 24 && this.vy > 0 && (!ground || ground(this.x))) {
+      if (fy !== null && this.vy > 0 && this.y >= fy && this.prevY <= fy + 30) {
         this.extraVX = 0;
-        this.y = 0;
+        this.y = fy;
         this.vy = 0;
         this.onGround = true;
         this.jumps = 0;
@@ -116,6 +123,7 @@
     if (this.hurt > 0) this.hurt -= dt;
     if (this.eat > 0) this.eat -= dt;
     if (this.wingFlap > 0) this.wingFlap -= dt * 3;
+    if (this.flip > 0) this.flip = Math.max(0, this.flip - dt / 0.38);
     this.stretch *= Math.pow(0.0005, dt); // じわっと元の形に戻る
     this.blink -= dt;
     if (this.blink < -3.2) this.blink = 0.12;
@@ -345,6 +353,12 @@
     // 無敵中は点滅（消さずにうすくする）
     var dim = this.invuln > 0 && Math.floor(this.invuln * 14) % 2 === 0;
     if (dim) { ctx.save(); ctx.globalAlpha = 0.4; }
+    var flipping = this.flip > 0;
+    if (flipping) {
+      // 体のまん中を中心に1回転
+      var e = 1 - this.flip, ang = (e * e * (3 - 2 * e)) * Math.PI * 2;
+      ctx.save(); ctx.translate(this.x, this.y - 40); ctx.rotate(ang); ctx.translate(-this.x, -(this.y - 40));
+    }
     DD.drawRoadrunner(ctx, this.x, this.y, {
       phase: this.phase,
       time: this.time,
@@ -357,6 +371,7 @@
       blink: this.blink,
       wingFlap: this.wingFlap
     });
+    if (flipping) ctx.restore();
     if (dim) ctx.restore();
   };
 

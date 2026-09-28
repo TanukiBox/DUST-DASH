@@ -245,10 +245,77 @@
   };
 
   // ------------------------------------------------------------
+  // 岩のひさし：上からせり出した岩。ジャンプすると頭をぶつける（下を走り抜ける）
+  // x = 中心、w = 長さ、y = 岩のいちばん下（ここより上に頭が出ると当たる）
+  // ------------------------------------------------------------
+  DD.KINDS.overhang = {
+    create: function (x, y, w) {
+      return { type: 'overhang', obstacle: true, ceiling: true, noScale: true, x: x, y: y, w: w, h: 900, t: 0, dead: false };
+    },
+    update: function (o, dt) { o.t += dt; },
+    draw: function (ctx, o) {
+      var th = DD.theme ? DD.theme() : null;
+      var rock = th ? th.rock : '#d0764a', band = th ? th.rockBand : '#a9553a';
+      var x0 = o.x - o.w / 2, x1 = o.x + o.w / 2, top = o.y - o.h, bot = o.y;
+      ctx.save();
+      // 岩の本体（下のふちは少しでこぼこ）
+      D.shape(ctx, function (c) {
+        c.moveTo(x0, top);
+        c.lineTo(x1, top);
+        c.lineTo(x1, bot - 22);
+        c.quadraticCurveTo(x1 - 6, bot - 4, x1 - 26, bot - 8);
+        c.lineTo(x0 + 26, bot - 8);
+        c.quadraticCurveTo(x0 + 6, bot - 4, x0, bot - 22);
+        c.closePath();
+      }, rock, D.LW);
+      ctx.fillStyle = band;
+      for (var yy = bot - 60; yy > top; yy -= 46) ctx.fillRect(x0 + 3, yy, o.w - 6, 10);
+      // 下向きのトゲ（つらら岩）
+      var n = Math.max(2, Math.floor(o.w / 46));
+      for (var i = 0; i < n; i++) {
+        var sx = x0 + 24 + i * (o.w - 48) / Math.max(1, n - 1);
+        D.shape(ctx, function (c) { c.moveTo(sx - 12, bot - 10); c.lineTo(sx, bot + 8); c.lineTo(sx + 12, bot - 10); c.closePath(); }, '#efe2c8', 3);
+      }
+      ctx.restore();
+    }
+  };
+
+  // ------------------------------------------------------------
+  // つむじ風：ふれると空高く飛ばされる（空のコインを集めるボーナス）
+  // ------------------------------------------------------------
+  DD.KINDS.whirl = {
+    create: function (x, y) {
+      return { type: 'whirl', whirl: true, x: x, y: y || 0, w: 60, h: 130, t: 0, dead: false, used: false };
+    },
+    update: function (o, dt) { o.t += dt; },
+    draw: function (ctx, o) {
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      for (var i = 0; i < 7; i++) {
+        var k = i / 6, r = 10 + k * 30, yy = -8 - k * 118;
+        var sw = Math.sin(o.t * 6 + i * 0.9) * (4 + k * 10);
+        ctx.globalAlpha = o.used ? 0.35 : 0.85;
+        D.oval(ctx, sw, yy, r, 7 + k * 3, 0, i % 2 ? '#fbeed2' : '#f0d7a4', 3);
+      }
+      // くるくる回る線
+      ctx.globalAlpha = o.used ? 0.3 : 0.8;
+      ctx.strokeStyle = '#c98c4a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      for (i = 0; i < 3; i++) {
+        var a = o.t * 8 + i * 2.1, yy2 = -30 - i * 34;
+        ctx.beginPath(); ctx.arc(0, yy2, 16 + i * 8, a, a + 1.6); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+
+  // ------------------------------------------------------------
   // 穴：地面を描いた後に上から描く
   // ------------------------------------------------------------
   DD.drawHole = function (ctx, hole, bottom) {
     var x0 = hole.x0, x1 = hole.x1, depth = Math.max(bottom, 200);
+    ctx.save();
+    ctx.translate(0, hole.y || 0); // 高い足場の穴は、その高さから下へ
+    depth -= hole.y || 0;
     var g = ctx.createLinearGradient(0, 0, 0, 150);
     g.addColorStop(0, '#9a6337');
     g.addColorStop(1, '#3f2616');
@@ -271,5 +338,6 @@
     ctx.moveTo(x0 - 6, 0); ctx.quadraticCurveTo(x0, 0, x0, 8); ctx.lineTo(x0, depth);
     ctx.moveTo(x1 + 6, 0); ctx.quadraticCurveTo(x1, 0, x1, 8); ctx.lineTo(x1, depth);
     ctx.stroke();
+    ctx.restore();
   };
 })(window);

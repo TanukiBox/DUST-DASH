@@ -11,8 +11,8 @@
   DD.KINDS = DD.KINDS || {};
 
   DD.KINDS.coin = {
-    create: function (x, y) {
-      return { type: 'coin', coin: true, x: x, y: y, w: 26, h: 26, t: Math.random() * 6, dead: false };
+    create: function (x, y, big) {
+      return { type: 'coin', coin: true, big: !!big, x: x, y: y, w: 26, h: 26, t: Math.random() * 6, dead: false };
     },
     update: function (c, dt) { c.t += dt; },
     draw: function (ctx, c) {
@@ -20,6 +20,13 @@
       var rx = 11 * (0.25 + 0.75 * spin), ry = 11;
       ctx.save();
       ctx.translate(c.x, c.y);
+      if (c.big) {
+        // 大きなコイン（10枚分）：光の輪つき
+        ctx.globalAlpha = 0.5 + Math.sin(c.t * 6) * 0.2;
+        D.star(ctx, 0, 0, 30, c.t, '#fff3b0', 0);
+        ctx.globalAlpha = 1;
+        ctx.scale(1.8, 1.8);
+      }
       D.oval(ctx, 0, 0, rx + 1.5, ry + 1.5, 0, '#e8a326', 3);
       D.oval(ctx, 0, 0, rx * 0.72, ry * 0.72, 0, '#ffd84a', 0);
       if (spin > 0.5) {

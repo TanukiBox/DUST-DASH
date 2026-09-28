@@ -23,8 +23,8 @@
     BOOST_TAU: 2.6,           // 食べて上がった速さが元に戻るまでの目安（秒）
     SPEED_FOLLOW: 2.2,        // ぶつかって落ちた速さが戻る早さ
     STAMINA_MAX: 100,
-    STAMINA_DRAIN: 2.0,       // スタミナが毎秒減る量（はじめ）
-    STAMINA_DRAIN_GROW: 0.02, // 1秒ごとに減る量がこれだけ増える（60秒で1.6倍、120秒で2.2倍、180秒で2.8倍）
+    STAMINA_DRAIN: 1.7,       // スタミナが毎秒減る量（はじめ）
+    STAMINA_DRAIN_GROW: 0.016,// 1秒ごとに減る量がこれだけ増える（60秒で1.6倍、120秒で2.1倍、180秒で2.7倍）
     FATIGUE_AT: 25,           // スタミナがこれ以下になると足が遅くなりはじめる
     FATIGUE_MIN: 0.5,         // スタミナが0に近いときの速さの割合
     EXHAUST_DECEL: 45,        // バテてから止まるまでの減速（km/h／秒）
@@ -77,6 +77,26 @@
     FEVER_MAGNET: 300,        // フィーバー中にコインを吸い寄せる範囲
     FEVER_GAIN: { bug: 4, lizard: 7, snake: 11, coin: 0.12 }, // ゲージのたまる量
 
+    // ---- ごほうび・ボーナス ----
+    COMBO_BONUS: 2,           // コンボ3以上で、1回踏むごとに コンボ数×これ のコイン
+    PERFECT_BONUS: 10,        // 並びを全部食べたとき、1匹につき これ のコイン
+    WHIRL_V: 1750,            // つむじ風で飛ばされる勢い
+    CEILING_CLEAR: 118,       // 岩のひさしの下のすきま（走っていればくぐれる高さ）
+    // ステージの特色：並びの出やすさの倍率
+    STAGE_BIAS: {
+      desert: { chain: 1.2 },
+      canyon: { overhang: 2.5, islands: 1.6, stepUp: 1.3 },
+      sunset: { stepUp: 1.5, stepDown: 1.5, giantCactus: 1.5 },
+      night:  { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 }
+    },
+
+    // ---- 地形（高い足場）----
+    STEP_UP: 14,              // これより低い段差は、そのまま乗り越える
+    LEDGE_GRAB: 34,           // 足が上のふちよりこれだけ下でも、上に乗れる（引っかからないように）
+    FLOOR_MIN: -230,          // 足場のいちばん高い所
+    WALL_LOSS: 12,            // 足場の壁にぶつかったときの減速（km/h）
+    WALL_STAMINA: 8,          // 同、スタミナが減る量
+
     // ---- 障害物 ----
     OBSTACLE: {
       cactusTall:  { w: 40, h: 72 },
@@ -89,7 +109,7 @@
     OBSTACLE_LOSS: 20,        // サボテン・岩に当たったときの減速（km/h。すぐ戻る）
     OBSTACLE_STAMINA: 15,     // 同、スタミナが減る量
     HOLE_LOSS: 25,            // 穴に落ちたときの減速（km/h）
-    HOLE_STAMINA: 22,         // 同、スタミナが減る量
+    HOLE_STAMINA: 18,         // 同、スタミナが減る量
     HOLE_WIDTH: 0.3,          // 穴の幅（秒換算。速いほど広くなる）
     WIDE_HOLE_WIDTH: 0.85,    // 大穴の幅（1回のジャンプでは届かない）
     HOLE_RECOVER_V: 1250,     // 穴から飛び出す勢い
@@ -101,8 +121,8 @@
     HAWK_CARRY_TIME: 1.1,     // つかんで飛び去る時間（秒）→ その後に結果画面
 
     // ---- 背景 ----
-    DAY_CYCLE_M: 1000,        // 夜明け→昼→夕焼け→星空 の1周の距離（m）
-    DAY_START: 0.06,          // スタート地点の時間帯（0=夜明け、0.14〜0.46=昼、0.6=夕焼け、0.72〜0.9=夜）
+    STAGE_M: 500,             // 1ステージの長さ（m）。朝の砂漠→赤い峡谷→夕焼けのメサ→星空の砂丘 をくり返す
+    STAGE_BLEND_M: 70,        // ステージの終わりの、この距離で次の景色へ切り替わる
     PARALLAX_FAR: 0.08,       // 遠くの台地が流れる速さ（地面を1として）
     PARALLAX_MID: 0.25,       // 砂丘
     PARALLAX_NEAR: 0.55,      // 手前の草木
@@ -124,7 +144,8 @@
     UNLOCK: {
       snake: 30, cactus: 40, rock: 40, hole: 80, holeBug: 80, cactusBug: 100,
       giantCactus: 150, vulture: 200, wideHole: 350, vulture2: 500,
-      rockRock: 600, holeRock: 800
+      rockRock: 600, holeRock: 800,
+      stepUp: 60, stepDown: 60, islands: 150, overhang: 250, whirl: 120
     },
     MILESTONE: 250,           // この距離ごとに「○m 突破！」を出す
 

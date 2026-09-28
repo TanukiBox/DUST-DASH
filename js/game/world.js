@@ -30,11 +30,11 @@
     this.groundY = H * U.lerp(0.66, 0.8, t);
   };
 
-  Camera.prototype.follow = function (px, py, dt) {
+  Camera.prototype.follow = function (px, py, dt, floorY) {
     this.x = px - this.viewW * this.anchor;
-    // 高く跳んだら画面を上に追いかける（頭の上に少し余白）
+    // 高い足場にいるときは画面も上へ。高く跳んだら追いかける（頭の上に少し余白）
     var room = this.groundY / this.scale;
-    var target = Math.min(0, py - 150 + room - 60);
+    var target = Math.min((floorY || 0) * 0.8, py - 150 + room - 60);
     this.y += (target - this.y) * Math.min(1, dt * 7);
   };
 
@@ -66,12 +66,13 @@
   DD.drawGround = function (ctx, cam, holes) {
     var b = cam.bounds();
     var left = b.left - 40, right = b.right + 40, bottom = b.bottom + 40;
-    // 地層
-    ctx.fillStyle = COL.sand;
+    // 地層（ステージの色）
+    var th = DD.theme ? DD.theme() : null;
+    ctx.fillStyle = th ? th.sand : COL.sand;
     ctx.fillRect(left, 0, right - left, bottom);
-    ctx.fillStyle = COL.sandDark;
+    ctx.fillStyle = th ? th.sandDark : COL.sandDark;
     ctx.fillRect(left, 46, right - left, bottom);
-    ctx.fillStyle = COL.sandDeep;
+    ctx.fillStyle = th ? th.sandDeep : COL.sandDeep;
     ctx.fillRect(left, 150, right - left, bottom);
     // 地層のさかい目（ゆるい波）
     ctx.strokeStyle = 'rgba(74, 45, 26, 0.25)';
@@ -127,11 +128,33 @@
     return false;
   }
 
-  /** 足元の丸い影（高いほど小さく薄く） */
-  DD.drawShadow = function (ctx, x, height, w) {
-    var k = U.clamp(1 - (-height) / 400, 0.3, 1);
-    ctx.beginPath(); D.ellipse(ctx, x, 3, w * k, 5 * k, 0);
+  /** 足元の丸い影（地面から高いほど小さく薄く）。floorY = 影が落ちる地面の高さ */
+  DD.drawShadow = function (ctx, x, y, floorY, w) {
+    var k = U.clamp(1 - (floorY - y) / 400, 0.3, 1);
+    ctx.beginPath(); D.ellipse(ctx, x, floorY + 3, w * k, 5 * k, 0);
     ctx.fillStyle = 'rgba(120, 72, 30, ' + (0.28 * k).toFixed(3) + ')';
     ctx.fill();
+  };
+
+  /** 高い足場（台地）。上の面から下の地面まで、しま模様の岩で描く */
+  DD.drawPlatform = function (ctx, f, bnd) {
+    var th = DD.theme ? DD.theme() : null;
+    var x0 = Math.max(f.x0, bnd.left - 40), x1 = Math.min(f.x1, bnd.right + 40);
+    var top = f.y, bottom = bnd.bottom + 40;
+    var body = th ? th.rock : '#e0a868', band = th ? th.rockBand : '#c98c4a', cap = th ? th.cap : '#fbe1a8';
+    ctx.fillStyle = body;
+    ctx.fillRect(x0, top, x1 - x0, bottom - top);
+    // しま模様
+    ctx.fillStyle = band;
+    for (var yy = top + 34; yy < 0; yy += 38) ctx.fillRect(x0, yy, x1 - x0, 9);
+    // 上の面
+    ctx.fillStyle = cap;
+    ctx.fillRect(x0, top, x1 - x0, 9);
+    ctx.strokeStyle = COL.line; ctx.lineWidth = D.LW; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (f.x0 >= bnd.left - 40) { ctx.moveTo(f.x0, 0); ctx.lineTo(f.x0, top); } else ctx.moveTo(x0, top);
+    ctx.lineTo(x1, top);
+    if (f.x1 <= bnd.right + 40) ctx.lineTo(f.x1, 0);
+    ctx.stroke();
   };
 })(window);

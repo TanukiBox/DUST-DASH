@@ -178,7 +178,7 @@
         var e = g.events[i];
         if (e === 'jump') this.hint.jumped = true;
         if (e === 'combo') this.comboPop = 1;
-        if (e === 'milestone') this.banner = { n: g.milestone, t: 0 };
+        if (e === 'stage') this.banner = { stage: g.stage, t: 0 };
         if (e === 'fever') this.feverBanner = { text: T('fever'), t: 0 };
         if (e === 'combo' || played[e]) continue; // 同じ音を1フレームに何度も鳴らさない
         played[e] = true;
@@ -190,7 +190,7 @@
       if (!app.seenHints.fever && g.feverGauge > 45) { app.seenHints.fever = true; this.hint.special = { text: T('hintFever'), until: g.time + 2.5 }; }
       if (g.eaten > 0 && this.hint.firstEatT === null) this.hint.firstEatT = g.time;
       if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt * 5);
-      if (this.banner) { this.banner.t += dt; if (this.banner.t > 2) this.banner = null; }
+      if (this.banner) { this.banner.t += dt; if (this.banner.t > 2.4) this.banner = null; }
       this.watchNewObstacles(app, g);
     },
     render: function (app, ctx) {
@@ -224,14 +224,19 @@
       if (!b || this.game.over) return;
       var ui = app.ui;
       var k = b.t < 0.3 ? U.easeOutBack(b.t / 0.3) : 1;
-      var a = b.t > 1.6 ? 1 - (b.t - 1.6) / 0.4 : 1;
+      var a = b.t > 2.0 ? 1 - (b.t - 2.0) / 0.4 : 1;
+      var st = DD.STAGES[b.stage % DD.STAGES.length];
       ctx.save();
       ctx.globalAlpha = Math.max(0, a);
       ctx.translate(ui.w / 2, ui.safeTop + 215);
       ctx.scale(k, k);
       ctx.rotate(-0.04);
-      D.text(ctx, T('milestone', { n: b.n }), 0, 0, { size: 44, fill: COL.good, maxW: ui.w - 40 });
-      D.text(ctx, T('harder'), 0, 40, { size: 20, fill: COL.cream, lw: 6, maxW: ui.w - 40 });
+      // リボン
+      var rw = Math.min(ui.w - 40, 320), rh = 92;
+      D.shape(ctx, function (c) { D.roundRect(c, -rw / 2, -rh / 2 + 4, rw, rh, 24); }, 'rgba(74,45,26,0.35)', 0);
+      D.shape(ctx, function (c) { D.roundRect(c, -rw / 2, -rh / 2, rw, rh, 24); }, 'rgba(255,246,226,0.92)', 4);
+      D.text(ctx, T('stage', { n: b.stage + 1 }), 0, -14, { size: 40, fill: COL.accent, maxW: rw - 30 });
+      D.text(ctx, T('stage_' + st.key), 0, 24, { size: 22, fill: COL.ink, lw: 0, maxW: rw - 30 });
       ctx.restore();
     },
     /** 初めて見る種類の障害物が画面に入ったら、よけ方を1回だけ教える */
@@ -345,15 +350,24 @@
 
     // コンボ中は速度の下に大きく出す
     if (g.combo >= 2) {
+      // コンボのバッジ（かたむいたリボンに大きな数字）
       var cs = 1 + (comboPop || 0) * 0.35;
       var hot = Math.min(1, (g.combo - 1) / 6);
       ctx.save();
-      ctx.translate(x + 4, sy + 92);
+      ctx.translate(x + 70, sy + 100);
       ctx.scale(cs, cs);
-      ctx.rotate(-0.05);
-      D.text(ctx, g.combo + ' ' + T('comboHud'), 0, 0, { size: 30 + hot * 8, fill: g.combo >= 5 ? COL.accent : COL.good, align: 'left' });
+      ctx.rotate(-0.12);
+      var col = g.combo >= 8 ? '#b35cff' : g.combo >= 5 ? COL.accent : '#e8a326';
+      D.shape(ctx, function (c) {
+        c.moveTo(-72, -22); c.lineTo(62, -24); c.lineTo(76, 0); c.lineTo(62, 24); c.lineTo(-72, 22); c.lineTo(-62, 0); c.closePath();
+      }, col, 4);
+      D.text(ctx, T('comboHud'), -18, 0, { size: 18, fill: COL.white, lw: 5, maxW: 70 });
+      D.text(ctx, String(g.combo), 44, 0, { size: 36 + hot * 6, fill: COL.white, lw: 7 });
       ctx.restore();
     }
+
+    // ---- ステージの進み具合（下）----
+    drawStageBar(app, ctx, g);
 
     // ---- 距離とコイン（右）----
     var rx = ui.w - ui.safeRight - 18;
@@ -369,6 +383,28 @@
     // 速いほどコインの価値が上がる
     var mul = DD.coinValue(g.speed) * (g.fever > 0 ? 2 : 1);
     if (mul > 1) D.text(ctx, '×' + mul, rx, sy + 94, { size: 22, fill: COL.accent, align: 'right', lw: 6 });
+  }
+
+  /** 画面の下：ステージの進み具合のバー */
+  function drawStageBar(app, ctx, g) {
+    var ui = app.ui, m = g.meters();
+    var st = Math.floor(m / DD.CFG.STAGE_M), k = (m - st * DD.CFG.STAGE_M) / DD.CFG.STAGE_M;
+    var bw = Math.min(ui.w * 0.6, 340), bh = 10, bx = (ui.w - bw) / 2, by = ui.h - ui.safeBottom - 26;
+    D.text(ctx, T('stage', { n: st + 1 }), bx - 10, by + bh / 2, { size: 16, fill: COL.white, align: 'right', lw: 5 });
+    D.shape(ctx, function (c) { D.roundRect(c, bx, by, bw, bh, bh / 2); }, 'rgba(74,45,26,0.55)', 3);
+    ctx.save();
+    ctx.beginPath(); D.roundRect(ctx, bx + 2, by + 2, Math.max(bh, (bw - 4) * k), bh - 4, (bh - 4) / 2); ctx.clip();
+    ctx.fillStyle = COL.good; ctx.fillRect(bx, by, bw, bh);
+    ctx.restore();
+    // 自分の位置（オオミチバシリの顔）
+    var hx = bx + bw * k, hy = by + bh / 2;
+    D.oval(ctx, hx, hy, 11, 10, 0, COL.rrBrown, 3);
+    D.shape(ctx, function (c) { c.moveTo(hx + 8, hy - 2); c.lineTo(hx + 20, hy + 1); c.lineTo(hx + 8, hy + 4); c.closePath(); }, COL.rrBeak, 2);
+    ctx.fillStyle = COL.line; ctx.beginPath(); D.ellipse(ctx, hx + 3, hy - 2, 2.2, 2.4, 0); ctx.fill();
+    // ゴールの旗
+    ctx.strokeStyle = COL.line; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx + bw + 8, by + bh + 2); ctx.lineTo(bx + bw + 8, by - 12); ctx.stroke();
+    D.shape(ctx, function (c) { c.moveTo(bx + bw + 8, by - 12); c.lineTo(bx + bw + 22, by - 7); c.lineTo(bx + bw + 8, by - 2); c.closePath(); }, COL.bad, 2);
   }
 
   // ------------------------------------------------------------

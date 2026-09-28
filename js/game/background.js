@@ -9,16 +9,22 @@
   var CFG = DD.CFG, COL = DD.COL, D = DD.draw, U = DD.util;
 
   // ------------------------------------------------------------
-  // 時間帯の色（p = 1周のうちどこか、0〜1）
+  // ステージごとの景色（500 m ごとに切り替わり、4つでひと回り）
+  // p = お日さま・お月さまの位置（0.2 朝、0.36 昼、0.6 夕方、0.84 夜）
   // ------------------------------------------------------------
-  var KEYS = [
-    { p: 0.00, name: 'dawn',   top: '#8fa9dc', mid: '#e6b9c6', bottom: '#ffd6aa', far: '#c79a9a', mid2: '#dfae8d', near: '#c89a7a', tint: '#ff9a7a', tintA: 0.10, night: 0.15 },
-    { p: 0.14, name: 'day',    top: '#9fd9ea', mid: '#d9f0ec', bottom: '#fde8c4', far: '#e3bd90', mid2: '#eec892', near: '#d8ae78', tint: '#ffffff', tintA: 0.00, night: 0.00 },
-    { p: 0.46, name: 'day',    top: '#9fd9ea', mid: '#d9f0ec', bottom: '#fde8c4', far: '#e3bd90', mid2: '#eec892', near: '#d8ae78', tint: '#ffffff', tintA: 0.00, night: 0.00 },
-    { p: 0.60, name: 'sunset', top: '#7d78c4', mid: '#f29a86', bottom: '#ffc96b', far: '#b8705e', mid2: '#d98a5c', near: '#b8704f', tint: '#ff8a4a', tintA: 0.16, night: 0.05 },
-    { p: 0.72, name: 'night',  top: '#1d2552', mid: '#34397a', bottom: '#5a5a98', far: '#2c2f5e', mid2: '#3b3c72', near: '#34355f', tint: '#1d2552', tintA: 0.38, night: 1.00 },
-    { p: 0.90, name: 'night',  top: '#1d2552', mid: '#34397a', bottom: '#5a5a98', far: '#2c2f5e', mid2: '#3b3c72', near: '#34355f', tint: '#1d2552', tintA: 0.38, night: 1.00 },
-    { p: 1.00, name: 'dawn',   top: '#8fa9dc', mid: '#e6b9c6', bottom: '#ffd6aa', far: '#c79a9a', mid2: '#dfae8d', near: '#c89a7a', tint: '#ff9a7a', tintA: 0.10, night: 0.15 }
+  DD.STAGES = [
+    { key: 'desert', p: 0.22, style: 'mesa',
+      top: '#9fd9ea', mid: '#d9f0ec', bottom: '#fde8c4', far: '#e3bd90', mid2: '#eec892', near: '#d8ae78', tint: '#ffffff', tintA: 0.00, night: 0.00,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#e6b070', rockBand: '#cf9152', cap: '#fbe1a8' },
+    { key: 'canyon', p: 0.36, style: 'canyon',
+      top: '#86c4e6', mid: '#f5dcc3', bottom: '#ffcf9e', far: '#c4674b', mid2: '#d98452', near: '#a8533a', tint: '#ff7040', tintA: 0.05, night: 0.00,
+      sand: '#eaa472', sandDark: '#d17f4c', sandDeep: '#ad5c37', rock: '#d0764a', rockBand: '#a9553a', cap: '#f4b98a' },
+    { key: 'sunset', p: 0.60, style: 'mesa',
+      top: '#7d78c4', mid: '#f29a86', bottom: '#ffc96b', far: '#b8705e', mid2: '#d98a5c', near: '#b8704f', tint: '#ff8a4a', tintA: 0.16, night: 0.05,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#d98a5c', rockBand: '#b8704f', cap: '#f8c98a' },
+    { key: 'night', p: 0.84, style: 'dunes',
+      top: '#1d2552', mid: '#34397a', bottom: '#5a5a98', far: '#2c2f5e', mid2: '#3b3c72', near: '#34355f', tint: '#1d2552', tintA: 0.38, night: 1.00,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#b98a60', rockBand: '#8f6a4a', cap: '#e9cfa0' }
   ];
 
   function hex(c) { return [parseInt(c.substr(1, 2), 16), parseInt(c.substr(3, 2), 16), parseInt(c.substr(5, 2), 16)]; }
@@ -31,22 +37,28 @@
     return 'rgba(' + Math.round(U.lerp(x[0], y[0], t)) + ',' + Math.round(U.lerp(x[1], y[1], t)) + ',' + Math.round(U.lerp(x[2], y[2], t)) + ',' + alpha.toFixed(3) + ')';
   }
 
-  /** 距離（m）から、今の空の色などを求める */
+  /** 距離（m）から、今のステージと景色の色を求める。ステージの終わり近くで次の景色へなめらかに変わる */
   DD.skyAt = function (meters) {
-    var p = ((meters / CFG.DAY_CYCLE_M) + CFG.DAY_START) % 1;
-    var i = 0;
-    while (i < KEYS.length - 2 && KEYS[i + 1].p <= p) i++;
-    var a = KEYS[i], b = KEYS[i + 1];
-    var t = (p - a.p) / (b.p - a.p);
-    t = t * t * (3 - 2 * t); // なめらかに
-    return {
-      p: p,
-      top: mix(a.top, b.top, t), mid: mix(a.mid, b.mid, t), bottom: mix(a.bottom, b.bottom, t),
-      far: mix(a.far, b.far, t), mid2: mix(a.mid2, b.mid2, t), near: mix(a.near, b.near, t),
+    var n = DD.STAGES.length;
+    var idx = Math.floor(meters / CFG.STAGE_M);
+    var local = meters - idx * CFG.STAGE_M;
+    var a = DD.STAGES[idx % n], b = DD.STAGES[(idx + 1) % n];
+    var t = U.clamp((local - (CFG.STAGE_M - CFG.STAGE_BLEND_M)) / CFG.STAGE_BLEND_M, 0, 1);
+    t = t * t * (3 - 2 * t);
+    var pb = b.p < a.p ? b.p + 1 : b.p;
+    var keys = ['top', 'mid', 'bottom', 'far', 'mid2', 'near', 'sand', 'sandDark', 'sandDeep', 'rock', 'rockBand', 'cap'];
+    var out = {
+      stage: idx, local: local, a: a, b: b, t: t,
+      p: U.lerp(a.p, pb, t) % 1,
       tint: mixA(a.tint, b.tint, t, U.lerp(a.tintA, b.tintA, t)),
       night: U.lerp(a.night, b.night, t)
     };
+    for (var i = 0; i < keys.length; i++) out[keys[i]] = mix(a[keys[i]], b[keys[i]], t);
+    return out;
   };
+
+  /** 今の景色（地面や足場の色に使う） */
+  DD.theme = function () { return DD.currentSky; };
 
   // ------------------------------------------------------------
   // 空（画面の座標）
@@ -105,6 +117,21 @@
   // 遠景（画面の座標）。factor が小さいほどゆっくり流れる
   // ------------------------------------------------------------
   DD.drawBackdrop = function (ctx, cam, sky) {
+    // ステージが変わるときは、前の景色と次の景色を重ねて入れかえる
+    if (sky.t <= 0.001 || sky.a.style === sky.b.style) { drawStyle(ctx, cam, sky, sky.t < 0.5 ? sky.a.style : sky.b.style); return; }
+    ctx.save(); ctx.globalAlpha = 1 - sky.t; drawStyle(ctx, cam, sky, sky.a.style); ctx.restore();
+    ctx.save(); ctx.globalAlpha = sky.t; drawStyle(ctx, cam, sky, sky.b.style); ctx.restore();
+  };
+
+  function drawStyle(ctx, cam, sky, style) {
+    var s = cam.scale, W = cam.W;
+    var gy = cam.groundY - cam.y * s;
+    if (style === 'canyon') { drawCanyon(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'dunes') { drawDunes(ctx, cam, sky, s, W, gy); return; }
+    drawMesa(ctx, cam, sky);
+  }
+
+  function drawMesa(ctx, cam, sky) {
     var s = cam.scale, W = cam.W;
     var gy = cam.groundY - cam.y * s; // 地面の線の高さ（画面）
 
@@ -183,7 +210,69 @@
         ctx.fill();
       }
     }
-  };
+    }
+
+  /** 赤い峡谷：高い崖が並ぶ */
+  function drawCanyon(ctx, cam, sky, s, W, gy) {
+    var f1 = CFG.PARALLAX_FAR, T1 = 300, off1 = cam.x * f1, k;
+    ctx.fillStyle = sky.far;
+    for (k = Math.floor(off1 / T1) - 1; k * T1 < off1 + W / s + T1; k++) {
+      var h1 = U.hash(k + 510), h2 = U.hash(k + 620);
+      var x0 = (k * T1 - off1) * s, w = (T1 * (0.7 + h1 * 0.5)) * s, h = (190 + h2 * 170) * s;
+      ctx.beginPath();
+      ctx.moveTo(x0, gy + 2);
+      ctx.lineTo(x0 + 14 * s, gy - h + 18 * s);
+      ctx.quadraticCurveTo(x0 + 18 * s, gy - h, x0 + 40 * s, gy - h);
+      ctx.lineTo(x0 + w - 40 * s, gy - h + 6 * s);
+      ctx.quadraticCurveTo(x0 + w - 16 * s, gy - h + 6 * s, x0 + w - 12 * s, gy - h + 26 * s);
+      ctx.lineTo(x0 + w, gy + 2);
+      ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.globalAlpha *= 0.16; ctx.fillStyle = '#ffffff';
+      for (var q = 1; q < 4; q++) ctx.fillRect(x0 + 16 * s, gy - h * (q / 4.2), w - 32 * s, 5 * s);
+      ctx.restore(); ctx.fillStyle = sky.far;
+      // ときどき岩のアーチ
+      if (h1 > 0.82) {
+        ctx.save(); ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath(); D.ellipse(ctx, x0 + w * 0.5, gy, w * 0.22, h * 0.45, 0); ctx.fill();
+        ctx.restore(); ctx.fillStyle = sky.far;
+      }
+    }
+    // ごつごつした岩の丘
+    var off2 = cam.x * CFG.PARALLAX_MID;
+    ctx.fillStyle = sky.mid2;
+    ctx.beginPath(); ctx.moveTo(0, gy + 2);
+    for (var px = 0; px <= W + 16; px += 16) {
+      var lx = px / s + off2;
+      var hh = 40 + 30 * Math.abs(Math.sin(lx * 0.006)) + 16 * Math.abs(Math.sin(lx * 0.017 + 1));
+      ctx.lineTo(px, gy - hh * s);
+    }
+    ctx.lineTo(W + 16, gy + 2); ctx.closePath(); ctx.fill();
+    // 手前の岩
+    var off3 = cam.x * CFG.PARALLAX_NEAR, T3 = 240;
+    ctx.fillStyle = sky.near;
+    for (k = Math.floor(off3 / T3) - 1; k * T3 < off3 + W / s + T3; k++) {
+      var r1 = U.hash(k + 730), r2 = U.hash(k + 840);
+      if (r1 < 0.5) continue;
+      var bx = (k * T3 + r2 * 120 - off3) * s, bw = (30 + r2 * 40) * s;
+      ctx.beginPath(); D.ellipse(ctx, bx, gy, bw, bw * 0.55, 0); ctx.fill();
+    }
+  }
+
+  /** 星空の砂丘：なだらかな大きな砂丘 */
+  function drawDunes(ctx, cam, sky, s, W, gy) {
+    var layers = [[CFG.PARALLAX_FAR, sky.far, 90, 0.0022, 0], [CFG.PARALLAX_MID, sky.mid2, 55, 0.004, 2], [CFG.PARALLAX_NEAR, sky.near, 26, 0.009, 4]];
+    for (var L = 0; L < layers.length; L++) {
+      var f = layers[L], off = cam.x * f[0];
+      ctx.fillStyle = f[1];
+      ctx.beginPath(); ctx.moveTo(0, gy + 2);
+      for (var px = 0; px <= W + 12; px += 12) {
+        var lx = px / s + off;
+        var hh = f[2] * (0.6 + 0.4 * Math.sin(lx * f[3] + f[4])) + f[2] * 0.3 * Math.sin(lx * f[3] * 2.7 + 1);
+        ctx.lineTo(px, gy - hh * s);
+      }
+      ctx.lineTo(W + 12, gy + 2); ctx.closePath(); ctx.fill();
+    }
+  }
 
   /** 地面にかける時間帯の色（夜は暗く、夕方はオレンジに） */
   DD.drawGroundTint = function (ctx, cam, sky) {
