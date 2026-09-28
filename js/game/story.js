@@ -28,6 +28,7 @@
       var self = this;
       this.skipBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.finish(app); } };
       app.setButtons([this.skipBtn]);
+      app.bgm.stop(0.5);
     },
     finish: function (app) {
       if (this.done) return;
@@ -56,6 +57,7 @@
       }
       this.cue(app, 'land', 5.95, 'land');
       this.cue(app, 'title', 9.6, 'fever');
+      if (this.cue(app, 'music', 6.2)) app.bgm.play('play');
       // 走り出したらカメラも一緒に進む
       if (t > 6.2) {
         var k = U.clamp((t - 6.2) / 1.2, 0, 1);

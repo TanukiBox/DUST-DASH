@@ -364,6 +364,16 @@
         this.land();
         this.run(v * 0.2, true);
         break;
+      case 'finale':
+        // ゴールへの最後の直線：地面の高さへもどして、コインの道。ゴール門を置く
+        if (!g.goalPlaced) {
+          g.goalPlaced = true;
+          if (this.floor() < -1) { this.setLevel(gh.x + 40, 0); this.run(80, true); }
+          this.run(Math.max(0, g.goalX - gh.x), true);
+          g.items.push(DD.KINDS.goal.create(g.goalX));
+        }
+        this.run(v * 2, false);
+        break;
       case 'feverCoins':
         // フィーバー中はコインの波
         var wl = v * 0.9;

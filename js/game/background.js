@@ -24,7 +24,11 @@
       sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#d98a5c', rockBand: '#b8704f', cap: '#f8c98a' },
     { key: 'night', p: 0.84, style: 'dunes',
       top: '#1d2552', mid: '#34397a', bottom: '#5a5a98', far: '#2c2f5e', mid2: '#3b3c72', near: '#34355f', tint: '#1d2552', tintA: 0.38, night: 1.00,
-      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#b98a60', rockBand: '#8f6a4a', cap: '#e9cfa0' }
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#b98a60', rockBand: '#8f6a4a', cap: '#e9cfa0' },
+    // 最後のステージ：夜が明けて、朝日の向こうにオアシス（ゴール）
+    { key: 'oasis', p: 0.08, style: 'oasis',
+      top: '#6f7fc9', mid: '#f7b3b8', bottom: '#ffd59a', far: '#c58f9a', mid2: '#e3a88e', near: '#8f9a5a', tint: '#ff9a7a', tintA: 0.10, night: 0.15,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#dca07a', rockBand: '#b97d5e', cap: '#f8d3a8' }
   ];
 
   function hex(c) { return [parseInt(c.substr(1, 2), 16), parseInt(c.substr(3, 2), 16), parseInt(c.substr(5, 2), 16)]; }
@@ -40,10 +44,10 @@
   /** 距離（m）から、今のステージと景色の色を求める。ステージの終わり近くで次の景色へなめらかに変わる */
   DD.skyAt = function (meters) {
     var n = DD.STAGES.length;
-    var idx = Math.floor(meters / CFG.STAGE_M);
+    var idx = Math.min(n - 1, Math.floor(Math.max(0, meters) / CFG.STAGE_M)); // 最後のステージより先はない（ゴール）
     var local = meters - idx * CFG.STAGE_M;
-    var a = DD.STAGES[idx % n], b = DD.STAGES[(idx + 1) % n];
-    var t = U.clamp((local - (CFG.STAGE_M - CFG.STAGE_BLEND_M)) / CFG.STAGE_BLEND_M, 0, 1);
+    var a = DD.STAGES[idx], b = DD.STAGES[Math.min(n - 1, idx + 1)];
+    var t = a === b ? 0 : U.clamp((local - (CFG.STAGE_M - CFG.STAGE_BLEND_M)) / CFG.STAGE_BLEND_M, 0, 1);
     t = t * t * (3 - 2 * t);
     var pb = b.p < a.p ? b.p + 1 : b.p;
     var keys = ['top', 'mid', 'bottom', 'far', 'mid2', 'near', 'sand', 'sandDark', 'sandDeep', 'rock', 'rockBand', 'cap'];
@@ -128,6 +132,7 @@
     var gy = cam.groundY - cam.y * s;
     if (style === 'canyon') { drawCanyon(ctx, cam, sky, s, W, gy); return; }
     if (style === 'dunes') { drawDunes(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'oasis') { drawDunes(ctx, cam, sky, s, W, gy); drawPalmsBack(ctx, cam, sky, s, W, gy); return; }
     drawMesa(ctx, cam, sky);
   }
 
@@ -271,6 +276,17 @@
         ctx.lineTo(px, gy - hh * s);
       }
       ctx.lineTo(W + 12, gy + 2); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  /** 夜明けのオアシス：砂丘の手前にヤシの木のシルエット */
+  function drawPalmsBack(ctx, cam, sky, s, W, gy) {
+    var off = cam.x * CFG.PARALLAX_NEAR, T = 330;
+    for (var k = Math.floor(off / T) - 1; k * T < off + W / s + T; k++) {
+      var r1 = U.hash(k + 910), r2 = U.hash(k + 920);
+      if (r1 < 0.35) continue;
+      var bx = (k * T + r2 * 160 - off) * s;
+      DD.drawPalm(ctx, bx, gy + 2, (70 + r1 * 50) * s, r2 > 0.5 ? 1 : -1, sky.near, 0, cam.x * 0.001 + k);
     }
   }
 

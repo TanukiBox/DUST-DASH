@@ -50,6 +50,9 @@
     this.spawned = 0;
     this.nextSpawnX = null;
     this.over = false;
+    this.goalX = CFG.GOAL_M * CFG.UNITS_PER_KMH * 3.6; // ゴールの場所（ゲーム内の座標）
+    this.cleared = false;  // ゴールした（逃げきった）
+    this.clearT = 0;
     this.catchT = 0;       // タカが急降下を始めてからの時間
     this.shadow = 0;       // タカの影の大きさ（なめらかに変える）
     this.cried = false;
@@ -63,7 +66,7 @@
   };
 
   Game.prototype.press = function () {
-    if (this.over) return;
+    if (this.over || this.cleared) return;
     this.player.press();
   };
 
@@ -89,7 +92,7 @@
     if (this.coinPop > 0) this.coinPop = Math.max(0, this.coinPop - dt * 6);
     if (this.staminaFlash < 0) this.staminaFlash = Math.min(0, this.staminaFlash + dt * 3);
     // ステージが進んだ
-    var st = Math.floor(this.meters() / CFG.STAGE_M);
+    var st = Math.min(DD.STAGES.length - 1, Math.floor(this.meters() / CFG.STAGE_M));
     if (!this.demo && !this.over && st > (this.stage || 0)) {
       this.stage = st;
       this.events.push('stage');
@@ -102,8 +105,26 @@
     var p = this.player;
     this.time += dt;
 
+    // ゴール！：タカをふりきった。少し走ってからエンディングへ
+    if (!this.demo && !this.over && !this.cleared && p.x >= this.goalX) {
+      this.cleared = true;
+      this.combo = 0;
+      this.fever = 0;
+      this.fx.flash = 1;
+      for (var ci = 0; ci < 30; ci++) this.fx.burst(p.x + 200 + Math.random() * 300, p.y - 200 - Math.random() * 200, ['#ff6b5b', '#ffcf3f', '#6cc06b', '#5b9cf0', '#b35cff'][ci % 5], 1, true);
+      this.events.push('goal');
+    }
+    if (this.cleared) {
+      this.clearT += dt;
+      this.speed = Math.max(40, this.speed - 25 * dt);
+      if (this.clearT > 2.2 && this.onOver) {
+        var cbGoal = this.onOver; this.onOver = null;
+        cbGoal(this.result());
+      }
+    }
+
     // スタミナと速さ（ウインドランナー式：スタミナは減り続け、減り方はだんだん速くなる）
-    if (!this.demo && !this.over) {
+    if (!this.demo && !this.over && !this.cleared) {
       var drain = (CFG.STAMINA_DRAIN + CFG.STAMINA_DRAIN_GROW * this.time) * this.up.stamina;
       if (this.fever <= 0) this.stamina = Math.max(0, this.stamina - drain * dt); // フィーバー中は減らない
       this.boost *= Math.exp(-dt / CFG.BOOST_TAU);
@@ -207,7 +228,7 @@
       // 地面を走る生き物は、段差や穴の手前で止まる（足場に埋まらないように）
       if (it.vx > 0 && !it.flying && this.floorAt(it.x + it.w / 2 + 4, true) !== it.y) it.vx = 0;
       if (it.bump > 0) it.bump -= dt;
-      if (!this.over) this.collide(it);
+      if (!this.over && !this.cleared && !it.deco) this.collide(it);
     }
   };
 
@@ -600,7 +621,7 @@
       if (pt.obstacle && this.lastObstacle && this.allowTwo === false) continue;
       var w = pt.w * (pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1); // 先に進むほど障害物が増える
       // ステージの特色（峡谷はひさし・足場が多い など）
-      var bias = CFG.STAGE_BIAS[DD.STAGES[Math.floor(m / CFG.STAGE_M) % DD.STAGES.length].key];
+      var bias = CFG.STAGE_BIAS[DD.STAGES[Math.min(DD.STAGES.length - 1, Math.floor(m / CFG.STAGE_M))].key];
       if (bias && bias[pt.name]) w *= bias[pt.name];
       if (pt.name === 'stepDown') w *= 1 + (-lvl) / 60;
       list.push({ name: pt.name, w: w }); total += w;
@@ -629,7 +650,8 @@
     }
     while (c.gh.x < edge) {
       var name;
-      if (this.fever > 0.8) name = 'feverCoins';
+      if (c.gh.x > this.goalX - Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * 3) name = 'finale'; // ゴール前は平らな道
+      else if (this.fever > 0.8) name = 'feverCoins';
       else if (this.sinceReward >= (this.rewardEvery || 3) && this.meters() > 60) {
         // ごほうび区間：障害物のない、コインや獲物がたくさんの並び
         name = U.pick(this.meters() > CFG.UNLOCK.whirl ? ['shapes', 'whirl', 'chain', 'shapes'] : ['shapes', 'chain']);
@@ -651,7 +673,7 @@
   Game.prototype.cull = function () {
     var left = this.cam.x - 200;
     for (var i = this.items.length - 1; i >= 0; i--) {
-      if (this.items[i].dead || this.items[i].x < left) this.items.splice(i, 1);
+      if (this.items[i].dead || this.items[i].x + (this.items[i].cullPad || 0) < left) this.items.splice(i, 1);
     }
     for (i = this.holes.length - 1; i >= 0; i--) {
       if (this.holes[i].x1 < left) this.holes.splice(i, 1);
@@ -670,6 +692,7 @@
       maxCombo: this.maxCombo,
       coinsPicked: Math.round(this.coinsPicked),
       coinsDist: Math.floor(this.meters() / CFG.DIST_COIN_PER),
+      cleared: this.cleared,
       coins: Math.round((this.coinsPicked + Math.floor(this.meters() / CFG.DIST_COIN_PER)) * this.up.luck),
       time: this.time
     };
@@ -677,7 +700,7 @@
 
   /** タカの近さ（0〜1）。遅いほど1に近い */
   Game.prototype.danger = function () {
-    if (this.demo) return 0;
+    if (this.demo || this.cleared) return 0;
     if (this.over) return 1;
     if (this.fever > 0) return 0;
     // 速さが土台より落ちるほど、スタミナが少ないほど、タカが迫る
@@ -823,7 +846,7 @@
     var list = [];
     for (var i = 0; i < this.items.length; i++) {
       var it = this.items[i];
-      if (it.dead || it.coin) continue;
+      if (it.dead || it.coin || it.deco) continue;
       var sc2 = this.scaleOf(it);
       list.push({ x: it.x - it.w * sc2 / 2, it: it, y: it.y - it.h * sc2 / 2 });
     }

@@ -89,7 +89,8 @@
       desert: { chain: 1.2 },
       canyon: { overhang: 2.5, islands: 1.6, stepUp: 1.3 },
       sunset: { stepUp: 1.5, stepDown: 1.5, giantCactus: 1.5 },
-      night:  { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 }
+      night:  { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 },
+      oasis:  { chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4 }
     },
 
     // ---- 地形（高い足場）----
@@ -123,7 +124,8 @@
     HAWK_CARRY_TIME: 1.1,     // つかんで飛び去る時間（秒）→ その後に結果画面
 
     // ---- 背景 ----
-    STAGE_M: 500,             // 1ステージの長さ（m）。朝の砂漠→赤い峡谷→夕焼けのメサ→星空の砂丘 をくり返す
+    STAGE_M: 800,             // 1ステージの長さ（m）。朝の砂漠→赤い峡谷→夕焼けのメサ→星空の砂丘→夜明けのオアシス
+    GOAL_M: 4000,             // ゴール（5ステージ目の終わり）。ここまで逃げきるとエンディング
     STAGE_BLEND_M: 70,        // ステージの終わりの、この距離で次の景色へ切り替わる
     PARALLAX_FAR: 0.08,       // 遠くの台地が流れる速さ（地面を1として）
     PARALLAX_MID: 0.25,       // 砂丘

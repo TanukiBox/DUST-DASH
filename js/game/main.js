@@ -30,8 +30,10 @@
   };
   document.documentElement.lang = app.i18n.lang;
   app.progress = DD.createProgress(app.store); // コイン・強化・最高記録（段階2：L セーブ）
+  app.seenHints = app.store.get('hints', {});   // 一度見た説明（障害物のよけ方など）は二度と出さない
   app.sound = TB.createSound(app.store);
   app.sfx = DD.createSfx(app.sound);
+  app.bgm = DD.createBgm(app.sound);
 
   // ---- ミュートボタン（右上）----
   var muteBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {

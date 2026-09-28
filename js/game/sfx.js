@@ -63,6 +63,18 @@
         S.tone({ type: 'sine', f0: 3136 * k, dur: 0.3, vol: 0.04, delay: n * 0.045 });
       },
       perfect: function () { [784, 988, 1175, 1568].forEach(function (f, i) { S.tone({ type: 'triangle', f0: f, dur: 0.14, vol: 0.1, delay: i * 0.07 }); }); },
+      // ゴール：大きなファンファーレ
+      goal: function () {
+        [523, 659, 784, 1047].forEach(function (f, i) { S.tone({ type: 'square', f0: f, dur: 0.12, vol: 0.08, delay: i * 0.09 }); });
+        [1047, 1319, 1568].forEach(function (f) { S.tone({ type: 'triangle', f0: f, dur: 0.7, vol: 0.08, delay: 0.4, attack: 0.02 }); });
+        S.noise({ f0: 600, f1: 3000, dur: 0.6, vol: 0.06, delay: 0.3 });
+      },
+      // 池にドボン
+      splash: function () {
+        S.noise({ f0: 1800, f1: 300, dur: 0.5, vol: 0.22, q: 0.7 });
+        S.tone({ type: 'sine', f0: 500, f1: 120, dur: 0.3, vol: 0.14 });
+        S.noise({ f0: 3000, f1: 1500, dur: 0.4, vol: 0.06, q: 2, delay: 0.15 });
+      },
       exhausted: function () { S.tone({ type: 'triangle', f0: 500, f1: 180, dur: 0.6, vol: 0.14 }); },
       // コイン：拾うたびに2つの高さを交互に鳴らす（チャリン）
       coin: function (n) {
