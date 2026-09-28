@@ -17,7 +17,7 @@
 
   DD.createSfx = function (sound) {
     var S = sound;
-    var coinStreak = 0, lastCoinT = -1, lastCoinPlay = -1;
+    var coinStreak = 0, lastCoinT = -1;
     function now() { return (global.performance ? global.performance.now() : Date.now()) / 1000; }
 
     function bell(f, o) {
@@ -101,12 +101,11 @@
       exhausted: function () {
         S.synth({ f: 520, f1: 190, glide: 0.6, dur: 0.6, vol: 0.1, osc: SOFT, env: { a: 0.01, d: 0.4, s: 0.6, r: 0.2 }, vib: { rate: 5, depth: 30 }, reverb: 0.3 });
       },
-      // コイン：小さなベルの「チリン」。続けて取ると音階を上っていく（うるさくならないよう小さめ・重なったら間引く）
+      // コイン：小さなベルの「チリン」。1枚ごとに鳴り、続けて取ると音階を上っていく（うるさくならないよう小さめ）
       coin: function () {
         var t = now();
-        if (t - lastCoinPlay < 0.045) return;       // ほぼ同時に何枚も取ったときは1回だけ
         if (t - lastCoinT > 0.45) coinStreak = 0;    // 間があいたら、はじめの高さから
-        lastCoinT = t; lastCoinPlay = t;
+        lastCoinT = t;
         var s = PENTA[coinStreak % 10];
         coinStreak++;
         bell(note(1319, s), { vol: 0.032, d: 0.12, r: 0.12, reverb: 0.18, pan: 0.15 });

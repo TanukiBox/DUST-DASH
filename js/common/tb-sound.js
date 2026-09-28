@@ -23,7 +23,8 @@
 
   TB.createSound = function (store) {
     var AC = global.AudioContext || global.webkitAudioContext;
-    var ctx = null, master = null, music = null, noiseBuf = null;
+    var ctx = null, master = null, music = null, sfx = null, noiseBuf = null;
+    var MASTER = 0.8, MUSIC = 0.72, SFX = 0.72; // 全体・BGM・効果音の音量（BGMと効果音の釣り合いはここで）
     var reverbIn = null, echoIn = null;
     var muted = !!(store && store.get('muted', false));
 
@@ -49,11 +50,14 @@
           comp.attack.value = 0.004; comp.release.value = 0.2;
           comp.connect(ctx.destination);
           master = ctx.createGain();
-          master.gain.value = muted ? 0 : 0.9;
+          master.gain.value = muted ? 0 : MASTER;
           master.connect(comp);
           music = ctx.createGain();   // BGM の音量（フェードに使う）
-          music.gain.value = 0.45;
+          music.gain.value = MUSIC;
           music.connect(master);
+          sfx = ctx.createGain();     // 効果音の音量
+          sfx.gain.value = SFX;
+          sfx.connect(master);
           // リバーブ（響き）
           var conv = ctx.createConvolver();
           conv.buffer = makeImpulse(1.8, 2.6);
@@ -87,7 +91,7 @@
     });
 
     function startTime(o) { return o.at !== undefined ? Math.max(o.at, ctx.currentTime) : ctx.currentTime + (o.delay || 0); }
-    function busOf(o) { return o.bus === 'music' ? music : master; }
+    function busOf(o) { return o.bus === 'music' ? music : sfx; }
 
     /** 音の出口：左右の位置 → バス。リバーブ・ディレイにも少し送る */
     function output(node, o, t0, tEnd) {
@@ -112,12 +116,14 @@
       setMuted: function (m) {
         muted = !!m;
         if (store) store.set('muted', muted);
-        if (master) master.gain.setTargetAtTime(muted ? 0 : 0.9, ctx.currentTime, 0.02);
+        if (master) master.gain.setTargetAtTime(muted ? 0 : MASTER, ctx.currentTime, 0.02);
       },
       toggle: function () { api.setMuted(!muted); return muted; },
 
       /** 今の時刻（秒）。まだ音が使えない（画面をさわる前など）ときは null */
       now: function () { return ctx && ctx.state === 'running' ? ctx.currentTime : null; },
+      /** BGM のふつうの音量 */
+      get musicLevel() { return MUSIC; },
       /** BGM の音量を sec 秒かけて v にする */
       musicVolume: function (v, sec) {
         if (!music) return;

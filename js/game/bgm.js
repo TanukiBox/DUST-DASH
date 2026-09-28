@@ -128,7 +128,7 @@
       switch (inst) {
         case 'bass':
           // のこぎり波＋1オクターブ下のサイン波。フィルターで「ボン」と丸く
-          S.synth({ f: f, dur: dur * 0.85, vol: 0.2, at: at, bus: M, osc: [{ type: 'sawtooth', detune: -4 }, { type: 'sawtooth', detune: 4 }, { type: 'sine', mul: 0.5, gain: 1.6 }],
+          S.synth({ f: f, dur: dur * 0.85, vol: 0.2, at: at, bus: M, osc: [{ type: 'sawtooth', detune: -4 }, { type: 'sawtooth', detune: 4 }, { type: 'sine', mul: 0.5, gain: 0.7 }],
             env: { a: 0.004, d: 0.18, s: 0.55, r: 0.06 }, filter: { f: 1100, f1: 320, t: 0.18, q: 2 } });
           break;
         case 'chord':
@@ -160,7 +160,7 @@
       var M = 'music';
       if (d.indexOf('k') >= 0) {
         // バスドラム：音程がすっと下がる「ドン」＋最初の「カッ」
-        S.synth({ f: 160, f1: 42, glide: 0.12, dur: 0.1, vol: 0.34, at: at, bus: M, osc: [{ type: 'sine' }], env: { a: 0.001, d: 0.18, s: 0, r: 0.1 } });
+        S.synth({ f: 170, f1: 50, glide: 0.1, dur: 0.1, vol: 0.26, at: at, bus: M, osc: [{ type: 'sine' }], env: { a: 0.001, d: 0.18, s: 0, r: 0.1 } });
         S.noise({ type: 'highpass', f0: 3000, dur: 0.012, vol: 0.05, at: at, bus: M });
       }
       if (d.indexOf('s') >= 0) {
@@ -210,7 +210,7 @@
         gen++;
         cur = tr; step = 0; nextTime = null; fever = false; pendingStage = null;
         shift = 0; bpm = tr.bpm;
-        S.musicVolume(0.45, 0.05);
+        S.musicVolume(S.musicLevel || 0.72, 0.05);
         if (!timer) timer = global.setInterval(tick, 30);
         tick();
       },
@@ -223,7 +223,7 @@
         global.setTimeout(function () {
           if (my !== gen) return; // その間に別の曲が始まった
           cur = null;
-          S.musicVolume(0.45, 0.05);
+          S.musicVolume(S.musicLevel || 0.72, 0.05);
         }, fade * 1000 + 60);
       },
       /** プレイ中のステージ。次の小節の頭から調と速さが変わる */
