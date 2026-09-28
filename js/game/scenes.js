@@ -182,7 +182,7 @@
         if (e === 'fever') this.feverBanner = { text: T('fever'), t: 0 };
         if (e === 'combo' || played[e]) continue; // 同じ音を1フレームに何度も鳴らさない
         played[e] = true;
-        app.sfx.play(e, e === 'coin' ? g.coinSfx : g.combo);
+        app.sfx.play(e, e === 'coin' ? g.coinSfx : e === 'gem' ? g.lastGem : g.combo);
       }
       g.events.length = 0;
       if (this.feverBanner) { this.feverBanner.t += dt; if (this.feverBanner.t > 1.4) this.feverBanner = null; }
@@ -443,7 +443,7 @@
       ctx.fillStyle = 'rgba(74, 45, 26, ' + (U.clamp(this.t / 0.3, 0, 1) * 0.45).toFixed(3) + ')';
       ctx.fillRect(0, 0, ui.w, ui.h);
 
-      var pw = Math.min(ui.w - 36, 380), ph = 392;
+      var pw = Math.min(ui.w - 36, 380), ph = 436;
       var btnH = 72, gap = 26;
       var total = ph + gap + btnH;
       var px = (ui.w - pw) / 2;
@@ -528,6 +528,19 @@
       if (this.game.up.luck > 1) detail += '  ' + T('luckBonus') + ' ×' + this.game.up.luck.toFixed(2);
       D.text(ctx, detail, px + pw - 22, coinY - 5, { size: 14, fill: COL.sandDeep, lw: 0, align: 'right', maxW: pw * 0.5 });
       D.text(ctx, T('coinsEarned') + ' ' + app.progress.coins, px + pw - 22, coinY + 17, { size: 14, fill: COL.sandDeep, lw: 0, align: 'right' });
+      // 拾った宝石
+      var gemY = coinY + 56, gw = (pw - 48) / 3;
+      ctx.strokeStyle = 'rgba(74, 45, 26, 0.2)';
+      ctx.beginPath(); ctx.moveTo(px + 24, gemY - 30); ctx.lineTo(px + pw - 24, gemY - 30); ctx.stroke();
+      var gemsRes = res.gems || {};
+      ['sapphire', 'emerald', 'ruby'].forEach(function (kind, i) {
+        var gx = px + 24 + gw * i + gw / 2, n = gemsRes[kind] || 0;
+        ctx.save();
+        if (!n) ctx.globalAlpha = 0.35;
+        DD.drawGem(ctx, kind, gx - 22, gemY, 14, this.t + i, false);
+        D.text(ctx, '×' + n, gx - 2, gemY + 1, { size: 26, fill: COL.ink, lw: 0, align: 'left' });
+        ctx.restore();
+      }, this);
       ctx.restore();
 
       // もう一度ボタン＋強化ボタン

@@ -53,7 +53,15 @@
       },
       stage: function () { recipes.milestone(); S.tone({ type: 'triangle', f0: 1568, dur: 0.3, vol: 0.08, delay: 0.3 }); },
       whirl: function () { S.noise({ f0: 300, f1: 2500, dur: 0.8, vol: 0.12, q: 2 }); S.tone({ type: 'sine', f0: 300, f1: 1200, dur: 0.6, vol: 0.1 }); },
-      bigCoin: function () { [1319, 1568, 2093].forEach(function (f, i) { S.tone({ type: 'square', f0: f, dur: 0.08, vol: 0.06, delay: i * 0.05 }); }); },
+      // 宝石：キラララン。高価な石ほど音が高く、長い
+      gem: function (kind) {
+        var k = kind === 'ruby' ? 1.26 : kind === 'emerald' ? 1.12 : 1;
+        var n = kind === 'ruby' ? 5 : 4;
+        [1047, 1319, 1568, 2093, 2637].slice(0, n).forEach(function (f, i) {
+          S.tone({ type: 'triangle', f0: f * k, dur: 0.14, vol: 0.09, delay: i * 0.045 });
+        });
+        S.tone({ type: 'sine', f0: 3136 * k, dur: 0.3, vol: 0.04, delay: n * 0.045 });
+      },
       perfect: function () { [784, 988, 1175, 1568].forEach(function (f, i) { S.tone({ type: 'triangle', f0: f, dur: 0.14, vol: 0.1, delay: i * 0.07 }); }); },
       exhausted: function () { S.tone({ type: 'triangle', f0: 500, f1: 180, dur: 0.6, vol: 0.14 }); },
       // コイン：拾うたびに2つの高さを交互に鳴らす（チャリン）

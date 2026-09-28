@@ -128,12 +128,18 @@
     var x = this.descendTo(fl - spec.h - lift);
     if (x === null) return null;
     var it = DD.createItem(type, x, fl - lift);
-    it.baseY = fl - lift;
+    it.y = it.baseY = fl - lift;
     // 動くトカゲは、着くころにここへ来るよう手前に置く
     if (type === 'lizard' && !this.fixed) {
       var g = this.g, v = Math.max(g.speed, 35) * CFG.UNITS_PER_KMH;
       var ta = (x - g.player.x) / Math.max(50, v - it.vx);
-      it.x = x - it.vx * Math.max(0, ta);
+      var sx = x - it.vx * Math.max(0, ta);
+      // 走ってくる道が平らなときだけ動かす（段差や穴があると、足場に埋まって見えるため）
+      var flat = true;
+      for (var qx = sx - it.w / 2; qx <= x + it.w / 2; qx += 16) {
+        if (g.floorAt(qx, true) !== fl) { flat = false; break; }
+      }
+      if (flat) it.x = sx; else it.vx = 0;
     } else if (type === 'lizard') {
       it.vx = 0;
     }
@@ -191,7 +197,7 @@
       case 'snake':
         this.run(lead, groundCoins); this.jump();
         this.preyHere(name === 'bugGround' ? 'bug' : name, 0);
-        if (name === 'snake') { var mark = g.items.length; this.toApex(); this.bigAtApex(mark); }
+        if (name === 'snake') { var mark = g.items.length; this.toApex(); this.bigAtApex(mark, 'sapphire'); }
         this.land();
         break;
       case 'bugAir':
@@ -213,7 +219,7 @@
           else pr = this.preyHere('lizard', 0);
           if (pr) { pr.chainId = cid; pr.chainN = n; }
         }
-        if (this.lastPrey && this.lastPrey.type === 'snake') this.bigAtApex(from); // ヘビの大ジャンプのてっぺんに大コイン
+        if (this.lastPrey && this.lastPrey.type === 'snake') this.bigAtApex(from, 'sapphire'); // ヘビの大ジャンプのてっぺんにサファイア
         this.land();
         break;
       case 'cactus':
@@ -227,7 +233,7 @@
         this.run(lead, groundCoins); this.jump(); this.wait(0.3); this.double();
         this.obstacleAtApex('giantCactus');
         this.land();
-        this.bigAtApex(from);
+        this.bigAtApex(from, 'emerald');
         break;
       case 'hole':
         this.run(lead, groundCoins); x0 = this.jump(); x1 = this.land();
@@ -334,7 +340,7 @@
 
       // ---- ごほうび ----
       case 'whirl':
-        // つむじ風で空高く。空のコインと大コイン、空の虫
+        // つむじ風で空高く。空のコインとルビー、空の虫
         this.run(lead, true);
         var wf = this.floor();
         g.items.push(DD.KINDS.whirl.create(gh.x + 10, wf));
@@ -343,7 +349,7 @@
         this.actions.push({ x: gh.x, a: 'whirl' });
         var mk3 = g.items.length;
         this.toApex();
-        this.bigAtApex(mk3);
+        this.bigAtApex(mk3, 'ruby');
         this.preyHere('bug', U.rand(260, 320), wf);
         this.preyHere('bug', U.rand(150, 200), wf);
         this.land();
@@ -369,14 +375,15 @@
         this.nextCoin = gh.x;
         break;
     }
+    for (var pi = from; pi < g.items.length; pi++) if (!g.items[pi].pat) g.items[pi].pat = name; // 確認用：どの並びで置いたか
     this.clearCoinsInObstacles(from);
   };
 
-  /** 新しく置いたコインのうち、いちばん高い所のものを大コイン（10枚分）にする */
-  Course.prototype.bigAtApex = function (from) {
+  /** 新しく置いたコインのうち、いちばん高い所のものを宝石にする */
+  Course.prototype.bigAtApex = function (from, gem) {
     var items = this.g.items, best = null;
     for (var i = from; i < items.length; i++) if (items[i].coin && (!best || items[i].y < best.y)) best = items[i];
-    if (best) best.big = true;
+    if (best) { best.big = true; best.gem = gem; }
   };
 
   /** コインで形を描く。まわりの道すじのコインは消して、形だけにする */
@@ -399,11 +406,11 @@
     }
     this.removeCoinsNear(cx, cy, 130, 110);
     for (i = 0; i < pts.length; i++) {
-      // まん中のコインは大コイン（10枚分）
+      // まん中は宝石
       var center = Math.abs(pts[i][0]) < 1 && Math.abs(pts[i][1]) < 1;
-      this.g.items.push(DD.KINDS.coin.create(cx + pts[i][0], cy + pts[i][1], center));
+      this.g.items.push(DD.KINDS.coin.create(cx + pts[i][0], cy + pts[i][1], center ? DD.pickGem() : null));
     }
-    if (kind === 'block') this.g.items.push(DD.KINDS.coin.create(cx, cy - 72, true));
+    if (kind === 'block') this.g.items.push(DD.KINDS.coin.create(cx, cy - 72, DD.pickGem()));
   };
 
   /** 空中にいた区間 [x0, x1] の真ん中に穴を開ける */

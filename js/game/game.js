@@ -42,6 +42,7 @@
     this.staminaFlash = 0; // ゲージを光らせる（＋は回復、－は減った）
     this.time = 0;
     this.snakes = 0;
+    this.gems = { sapphire: 0, emerald: 0, ruby: 0 }; // 拾った宝石の数
     this.eaten = 0;
     this.combo = 0;        // 着地せずに続けて踏んだ数
     this.maxCombo = 0;
@@ -203,6 +204,8 @@
       var it = this.items[i];
       if (it.dead) continue;
       DD.KINDS[it.type].update(it, dt);
+      // 地面を走る生き物は、段差や穴の手前で止まる（足場に埋まらないように）
+      if (it.vx > 0 && !it.flying && this.floorAt(it.x + it.w / 2 + 4, true) !== it.y) it.vx = 0;
       if (it.bump > 0) it.bump -= dt;
       if (!this.over) this.collide(it);
     }
@@ -399,12 +402,18 @@
   /** コインを拾う。速いほど1枚の価値が上がる */
   Game.prototype.pickCoin = function (it) {
     it.dead = true;
-    var val = DD.coinValue(this.speed) * (this.fever > 0 ? 2 : 1) * (it.big ? 10 : 1);
+    var val = DD.coinValue(this.speed) * (this.fever > 0 ? 2 : 1) * (it.gem ? CFG.GEMS[it.gem] : 1);
     this.coinsPicked += val;
-    if (it.big) {
-      this.fx.burst(it.x, it.y, COL.good, 10, true);
-      this.fx.pop(it.x, it.y - 30, '+' + val, COL.good, 40, this.speed * CFG.UNITS_PER_KMH);
-      this.events.push('bigCoin');
+    if (it.gem) {
+      // 宝石：石の色の光と「ルビー +40」
+      this.gems[it.gem]++;
+      this.lastGem = it.gem;
+      var gc = DD.GEM_COL[it.gem];
+      this.fx.burst(it.x, it.y, gc.mid, 12, true);
+      this.fx.ring(it.x, it.y, 60);
+      var gname = DD.app ? DD.app.i18n.t('gem_' + it.gem) : it.gem;
+      this.fx.pop(it.x, it.y - 34, gname + ' +' + val, gc.light, 34, this.speed * CFG.UNITS_PER_KMH);
+      this.events.push('gem');
     }
     this.coinPop = 1;
     this.addFever(CFG.FEVER_GAIN.coin);
@@ -657,6 +666,7 @@
       maxSpeed: Math.round(this.maxSpeed),
       distance: Math.round(this.player.x / (CFG.UNITS_PER_KMH * 3.6)), // メートル
       snakes: this.snakes,
+      gems: this.gems,
       maxCombo: this.maxCombo,
       coinsPicked: Math.round(this.coinsPicked),
       coinsDist: Math.floor(this.meters() / CFG.DIST_COIN_PER),

@@ -289,21 +289,123 @@
     },
     update: function (o, dt) { o.t += dt; },
     draw: function (ctx, o) {
+      var t = o.t, H = 140, i, k, q;
+      var A = o.used ? 0.35 : 1;
+      // うずの帯（下から上へ流れる）の高さ
+      var bands = [];
+      for (i = 0; i < 6; i++) bands.push(((i / 6) + t * 0.6) % 1);
+      // 高さの割合 k（0=足元、1=てっぺん）での、うずの半径・中心のずれ・高さ
+      var rad = function (kk) {
+        var r = 6 + 36 * Math.pow(kk, 1.3);
+        for (var b = 0; b < bands.length; b++) { var e = (kk - bands[b]) / 0.05; r += 3.5 * kk * Math.exp(-e * e); } // 帯のところが少しふくらむ
+        return r;
+      };
+      var cen = function (kk) { return Math.sin(t * 3.2 - kk * 3.4) * (2 + 12 * kk); };
+      var yOf = function (kk) { return -6 - kk * (H - 6); };
       ctx.save();
       ctx.translate(o.x, o.y);
-      for (var i = 0; i < 7; i++) {
-        var k = i / 6, r = 10 + k * 30, yy = -8 - k * 118;
-        var sw = Math.sin(o.t * 6 + i * 0.9) * (4 + k * 10);
-        ctx.globalAlpha = o.used ? 0.35 : 0.85;
-        D.oval(ctx, sw, yy, r, 7 + k * 3, 0, i % 2 ? '#fbeed2' : '#f0d7a4', 3);
+      ctx.globalAlpha = A;
+
+      // 足元の砂けむり（うしろ側）
+      var puffs = function (front) {
+        for (var p = 0; p < 6; p++) {
+          var pa = t * 4.5 + p * Math.PI / 3, z = Math.sin(pa);
+          if ((z >= 0) !== front) continue;
+          var pr = (p % 2 ? 7 : 10) + z * 2;
+          D.oval(ctx, Math.cos(pa) * 26, -7 - z * 3, pr, pr * 0.8, 0, front ? '#f6e4be' : '#e3c28c', front ? 2.5 : 0);
+        }
+      };
+      ctx.fillStyle = 'rgba(200, 150, 90, 0.35)';
+      ctx.beginPath(); D.ellipse(ctx, 0, -2, 42, 7, 0); ctx.fill();
+      puffs(false);
+
+      // うしろ側を回る小石と葉っぱ（奥なので小さく暗く）
+      var debris = [];
+      for (i = 0; i < 6; i++) debris.push({ k: 0.2 + (i % 3) * 0.3, a: t * (5 - (i % 3) * 0.5) + i * 1.9, leaf: i % 2 === 0 });
+      var drawDebris = function (front) {
+        for (var d = 0; d < debris.length; d++) {
+          var db = debris[d], z = Math.sin(db.a);
+          if ((z >= 0) !== front) continue;
+          var r = rad(db.k) + 10, dx = cen(db.k) + Math.cos(db.a) * r, dy = yOf(db.k) + z * r * 0.22;
+          var sc = 0.75 + z * 0.25;
+          ctx.save();
+          ctx.translate(dx, dy); ctx.rotate(db.a * 1.7); ctx.scale(sc, sc);
+          if (db.leaf) D.shape(ctx, function (c) { c.moveTo(-7, 0); c.quadraticCurveTo(0, -7, 7, 0); c.quadraticCurveTo(0, 7, -7, 0); c.closePath(); }, front ? '#9cc45a' : '#7fa24a', front ? 2 : 0);
+          else D.oval(ctx, 0, 0, 4.5, 3.5, 0, front ? '#b98b5e' : '#94704c', front ? 2 : 0);
+          ctx.restore();
+        }
+      };
+      drawDebris(false);
+
+      // うずの本体（下が細く上が広いろうと形。ふちは帯のところで波打つ）
+      var N = 40, left = [], right = [];
+      for (i = 0; i <= N; i++) {
+        k = i / N;
+        var c = cen(k), r0 = rad(k), yy = yOf(k);
+        left.push([c - r0, yy]); right.push([c + r0, yy]);
       }
-      // くるくる回る線
-      ctx.globalAlpha = o.used ? 0.3 : 0.8;
+      var body = function (cx) {
+        cx.moveTo(left[0][0], left[0][1]);
+        for (var n = 1; n <= N; n++) cx.lineTo(left[n][0], left[n][1]);
+        // てっぺんはもこもこの雲
+        var tc = cen(1), tr = rad(1), ty = yOf(1);
+        cx.quadraticCurveTo(tc - tr - 8, ty - 16, tc - tr * 0.45, ty - 14);
+        cx.quadraticCurveTo(tc - tr * 0.2, ty - 30, tc + tr * 0.2, ty - 16);
+        cx.quadraticCurveTo(tc + tr * 0.55, ty - 26, tc + tr * 0.7, ty - 10);
+        cx.quadraticCurveTo(tc + tr + 10, ty - 10, right[N][0], right[N][1]);
+        for (n = N; n >= 0; n--) cx.lineTo(right[n][0], right[n][1]);
+        cx.closePath();
+      };
+      // 半分すけた砂色（空がうっすら見える）
+      var gr = ctx.createLinearGradient(-45, 0, 45, 0);
+      gr.addColorStop(0, 'rgba(226, 190, 130, 0.8)');
+      gr.addColorStop(0.42, 'rgba(255, 246, 226, 0.78)');
+      gr.addColorStop(1, 'rgba(214, 170, 110, 0.8)');
+      D.shape(ctx, body, gr, 0);
+
+      // 回るすじ：前を横切る短い弧。帯ごとに長さと色を変えて、ぐるぐる回って見せる
+      ctx.save();
+      ctx.beginPath(); body(ctx); ctx.clip();
+      ctx.lineCap = 'round';
+      for (i = 0; i < 14; i++) {
+        k = ((i / 14) + t * 0.6) % 1;
+        var fade = Math.min(1, k * 6, (1 - k) * 6);
+        var bc = cen(k), br = rad(k), by = yOf(k);
+        var spin = t * 7 + i * 2.4, len = 0.9 + (i % 3) * 0.45;
+        var st = ((spin % Math.PI) + Math.PI) % Math.PI - 0.4; // 前側（0〜π）を右から左へ流れる
+        ctx.globalAlpha = A * fade;
+        ctx.strokeStyle = i % 2 ? 'rgba(255, 255, 255, 0.9)' : '#c98c4a';
+        ctx.lineWidth = i % 2 ? 2.2 : 2.8;
+        ctx.beginPath(); ctx.ellipse(bc, by, br * 0.94, br * 0.3, -0.1, st, st + len); ctx.stroke();
+      }
+      ctx.restore();
+
+      // 輪郭（太めのこげ茶）
+      ctx.globalAlpha = A;
+      D.shape(ctx, body, null, 3.5);
+      // てっぺんの口（うずの奥）
+      var tc2 = cen(1), tr2 = rad(1), ty2 = yOf(1);
+      ctx.globalAlpha = A * 0.55;
       ctx.strokeStyle = '#c98c4a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.ellipse(tc2, ty2 - 4, tr2 * 0.7, 6, 0, Math.PI + 0.3, Math.PI * 2 - 0.3); ctx.stroke();
+
+      // ふちから飛び出す風の線（くるんと巻く）
+      ctx.lineWidth = 3;
       for (i = 0; i < 3; i++) {
-        var a = o.t * 8 + i * 2.1, yy2 = -30 - i * 34;
-        ctx.beginPath(); ctx.arc(0, yy2, 16 + i * 8, a, a + 1.6); ctx.stroke();
+        var wk = (t * 0.9 + i / 3) % 1, kk = 0.25 + i * 0.28, side = i % 2 ? -1 : 1;
+        var wx = cen(kk) + side * (rad(kk) + 2), wy = yOf(kk);
+        ctx.globalAlpha = A * Math.sin(wk * Math.PI);
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(wx, wy + 2);
+        ctx.quadraticCurveTo(wx + side * (14 + wk * 8), wy - 2, wx + side * (18 + wk * 10), wy - 10);
+        ctx.quadraticCurveTo(wx + side * (20 + wk * 10), wy - 17, wx + side * (13 + wk * 10), wy - 15);
+        ctx.stroke();
       }
+      ctx.globalAlpha = A;
+      // 前側を回る小石と葉っぱ、足元の砂けむり（前側）
+      drawDebris(true);
+      puffs(true);
       ctx.restore();
     }
   };

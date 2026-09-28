@@ -86,7 +86,7 @@
   // トカゲ：地面をちょこちょこ右へ走る
   // ------------------------------------------------------------
   DD.KINDS.lizard = {
-    create: function (x, y) { var l = base('lizard', x, 0); l.vx = CFG.PREY.lizard.vx; return l; },
+    create: function (x, y) { var l = base('lizard', x, y || 0); l.vx = CFG.PREY.lizard.vx; return l; },
     update: function (l, dt) {
       l.t += dt;
       l.x += l.vx * dt;
@@ -138,7 +138,7 @@
   // ------------------------------------------------------------
   DD.KINDS.snake = {
     create: function (x, y) {
-      var s = base('snake', x, 0);
+      var s = base('snake', x, y || 0);
       s.strike = 0;
       return s;
     },
