@@ -32,6 +32,7 @@
     this.blink = 0;
     this.extraVX = 0;      // 穴から飛び出すときの追加の横移動
     this.flip = 0;         // 宙返りの残り（1→0）
+    this.lean = 0.04;      // 体の傾き（急に変わるとカクっと見えるので、なめらかに追いかける）
     this.events = [];      // 'jump' | 'double' | 'land'（演出・効果音用）
   };
 
@@ -130,6 +131,10 @@
 
     // 走りのアニメ：速いほど足が速く回る
     if (speed > 0) this.phase += dt * (9 + speed * 0.16);
+    // 体の傾き：空中では上がるとき後ろへ、落ちるとき前へ。切りかわりは なめらかに
+    var sn = U.clamp((speed - CFG.SPEED_FX_FROM) / (CFG.SPEED_FX_FULL - CFG.SPEED_FX_FROM), 0, 1);
+    var leanTarget = this.onGround ? 0.04 + sn * 0.16 : U.clamp(this.vy / 900, -1, 1) * 0.12;
+    this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);
   };
 
   // ------------------------------------------------------------
@@ -183,7 +188,8 @@
     ctx.scale(ART_SCALE * sx, ART_SCALE * sy);
 
     var bob = air ? 0 : -Math.abs(Math.sin(p)) * 3.5;
-    var lean = air ? (pose.vy < 0 ? -0.12 : 0.1) : 0.04 + sn * 0.16;
+    // 体の傾き：pose.lean があればそれを使う（主人公はなめらかに変わる値を渡す）
+    var lean = pose.lean !== undefined ? pose.lean : air ? (pose.vy < 0 ? -0.12 : 0.1) : 0.04 + sn * 0.16;
     var hipX = 0, hipY = -28 + bob;
 
     // ---- 奥の足 ----
@@ -369,7 +375,8 @@
       eat: this.eat,
       hurt: this.hurt,
       blink: this.blink,
-      wingFlap: this.wingFlap
+      wingFlap: this.wingFlap,
+      lean: this.lean
     });
     if (flipping) ctx.restore();
     if (dim) ctx.restore();

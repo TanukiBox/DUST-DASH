@@ -50,6 +50,10 @@
   // 裏拍に和音をきざむ
   function stab(ch) { return ['.', '.', ch, '.', '.', '.', ch, '.', '.', '.', ch, '.', '.', '.', ch, '.'].join(' '); }
 
+  // 1小節ずっと鳴らす和音（パッド）
+  function hold(ch) { return ch + ' - - - - - - - - - - - - - - -'; }
+  function half(a, b) { return a + ' - - - - - - - ' + b + ' - - - - - - -'; }
+
   var Am = 'A3+C4+E4', G = 'G3+B3+D4', F = 'F3+A3+C4', E = 'E3+G#3+B3', C = 'C4+E4+G4', Gh = 'G3+B3+D4';
 
   var TRACKS = {
@@ -63,6 +67,7 @@
                               ' | A3 . C4 . E4 . A4 . E4 . C4 . E4 . C4 . | G3 . B3 . D4 . G4 . D4 . B3 . D4 . B3 . | F3 . A3 . C4 . F4 . C4 . A3 . C4 . A3 . | E3 . G#3 . B3 . E4 . B3 . G#3 . B3 . G#3 .' },
         { inst: 'soft', score: 'E5 - - - - - - - A4 - C5 - E5 - - - | D5 - - - - - - - G4 - B4 - D5 - - - | C5 - - - - - A4 - C5 - - - F5 - E5 - | E5 - - - - - - - - - - - . . . . ' +
                                '| C5 - - - B4 - A4 - E5 - - - - - - - | D5 - - - C5 - B4 - G5 - - - - - - - | F5 - - - E5 - C5 - A4 - - - C5 - - - | B4 - - - - - - - G#4 - - - - - - -' },
+        { inst: 'pad', score: [Am, G, F, E, Am, G, F, E].map(hold).join(' | ') },
         { inst: 'drum', score: rep('k . . . . . h . . . . . . . h .', 8) }
       ]
     },
@@ -74,6 +79,7 @@
                                 gallop('A2', 'E3'), gallop('G2', 'D3'), gallop('F2', 'C3'), gallop('E2', 'B2'),
                                 gallop('F2', 'C3'), gallop('G2', 'D3'), gallop('A2', 'E3'), gallop('A2', 'E3'),
                                 gallop('F2', 'C3'), gallop('G2', 'D3'), gallop('E2', 'B2'), gallop('E2', 'B2')].join(' | ') },
+        { inst: 'pad', score: [Am, G, F, E, Am, G, F, E, F, G, Am, Am, F, G, E, E].map(hold).join(' | ') },
         { inst: 'chord', score: [stab(Am), stab(G), stab(F), stab(E), stab(Am), stab(G), stab(F), stab(E),
                                  stab(F), stab(G), stab(Am), stab(Am), stab(F), stab(G), stab(E), stab(E)].join(' | ') },
         { inst: 'lead', score:
@@ -90,6 +96,7 @@
       parts: [
         { inst: 'bass', score: 'C3 . . . G2 . . . C3 . . . G2 . . . | G2 . . . D3 . . . G2 . . . D3 . . . | A2 . . . E3 . . . A2 . . . E3 . . . | F2 . . . C3 . . . F2 . . . C3 . . . | ' +
                                'C3 . . . G2 . . . C3 . . . G2 . . . | G2 . . . D3 . . . G2 . . . D3 . . . | F2 . . . C3 . . . G2 . . . D3 . . . | C3 - - - - - - - C2 - - - - - - -' },
+        { inst: 'pad', score: [hold(C), hold(Gh), hold(Am), hold(F), hold(C), hold(Gh), half(F, Gh), hold(C)].join(' | ') },
         { inst: 'chord', score: [stab(C), stab(Gh), stab(Am), stab(F), stab(C), stab(Gh), 'F3+A3+C4 . . . . . F3+A3+C4 . G3+B3+D4 . . . . . G3+B3+D4 .', 'C4+E4+G4 - - - - - - - . . . . . . . .'].join(' | ') },
         { inst: 'lead', score: 'C5 - E5 - G5 - - - E5 - G5 - C6 - - - | B5 - - - A5 - G5 - D5 - - - G5 - - - | A5 - G5 - E5 - - - C5 - E5 - A5 - - - | G5 - - - F5 - E5 - F5 - - - - - - - | ' +
                                'E5 - E5 - G5 - E5 - C6 - - - G5 - - - | D5 - D5 - G5 - D5 - B5 - - - G5 - - - | A5 - - - C6 - A5 - G5 - - - B5 - D6 - | C6 - - - - - - - - - - - . . . .' },
@@ -113,33 +120,55 @@
     var cur = null, step = 0, nextTime = null, shift = 0, bpm = 120, fever = false;
     var pendingStage = null, timer = null, gen = 0;
 
+    // 楽器の音色（tb-sound.js の synth）。少しずつ高さをずらした音を重ねて厚みを出し、響きを足す
+    var SAW2 = [{ type: 'sawtooth', detune: -7 }, { type: 'sawtooth', detune: 7 }];
+    var SAW3 = [{ type: 'sawtooth', detune: -12 }, { type: 'sawtooth', detune: 0 }, { type: 'sawtooth', detune: 12 }];
     function play1(inst, f, at, dur) {
+      var M = 'music';
       switch (inst) {
         case 'bass':
-          S.tone({ type: 'triangle', f0: f, dur: dur * 0.9, vol: 0.2, at: at, bus: 'music' });
+          // のこぎり波＋1オクターブ下のサイン波。フィルターで「ボン」と丸く
+          S.synth({ f: f, dur: dur * 0.85, vol: 0.2, at: at, bus: M, osc: [{ type: 'sawtooth', detune: -4 }, { type: 'sawtooth', detune: 4 }, { type: 'sine', mul: 0.5, gain: 1.6 }],
+            env: { a: 0.004, d: 0.18, s: 0.55, r: 0.06 }, filter: { f: 1100, f1: 320, t: 0.18, q: 2 } });
           break;
         case 'chord':
-          S.tone({ type: 'square', f0: f, dur: Math.min(dur, 0.12), vol: 0.022, at: at, bus: 'music', filter: { type: 'lowpass', f: 1800, q: 0.5 } });
+          // ギターをはじいたような「ポロン」
+          S.synth({ f: f, dur: 0.05, vol: 0.05, at: at, bus: M, osc: SAW3, env: { a: 0.002, d: 0.16, s: 0, r: 0.12 },
+            filter: { f: 3200, f1: 700, t: 0.15, q: 1.2 }, reverb: 0.25, pan: f > 300 ? 0.25 : -0.25 });
+          break;
+        case 'pad':
+          // うしろで鳴りつづける やわらかい和音
+          S.synth({ f: f, dur: dur * 0.95, vol: 0.022, at: at, bus: M, osc: SAW3, env: { a: 0.25, d: 0.5, s: 0.8, r: 0.5 },
+            filter: { f: 900, q: 0.6 }, reverb: 0.5, pan: (f % 3 - 1) * 0.4 });
           break;
         case 'arp':
-          S.tone({ type: 'triangle', f0: f, dur: 0.3, vol: 0.06, at: at, bus: 'music' });
+          S.synth({ f: f, dur: 0.06, vol: 0.07, at: at, bus: M, osc: [{ type: 'triangle' }, { type: 'sine', mul: 2, gain: 0.35 }], env: { a: 0.003, d: 0.35, s: 0, r: 0.3 },
+            reverb: 0.4, echo: 0.15, pan: 0.2 });
           break;
         case 'soft':
-          S.tone({ type: 'triangle', f0: f, dur: dur * 0.95, vol: 0.08, at: at, bus: 'music', attack: 0.03, vibrato: { rate: 5, depth: f * 0.006 } });
+          S.synth({ f: f, dur: dur * 0.9, vol: 0.08, at: at, bus: M, osc: [{ type: 'triangle' }, { type: 'sine', mul: 2, gain: 0.2 }], env: { a: 0.03, d: 0.3, s: 0.7, r: 0.25 },
+            vib: { rate: 5, depth: 12, delay: 0.25 }, reverb: 0.4, echo: 0.2 });
           break;
-        default: // lead
+        default: // lead：2本のずらしたのこぎり波＋四角い波。やまびこ付き
           var ff = fever ? f * 2 : f;
-          S.tone({ type: 'square', f0: ff, dur: dur * 0.92, vol: 0.045, at: at, bus: 'music', attack: 0.01,
-            filter: { type: 'lowpass', f: 2600, q: 0.7 }, vibrato: dur > 0.3 ? { rate: 6, depth: ff * 0.008 } : null });
+          S.synth({ f: ff, dur: dur * 0.9, vol: 0.055, at: at, bus: M, osc: [{ type: 'sawtooth', detune: -6 }, { type: 'sawtooth', detune: 6 }, { type: 'square', gain: 0.5 }],
+            env: { a: 0.008, d: 0.2, s: 0.7, r: 0.1 }, filter: { f: 3400, f1: 2200, t: 0.3, q: 1 },
+            vib: dur > 0.3 ? { rate: 6, depth: 14, delay: 0.18 } : null, reverb: 0.25, echo: 0.22 });
       }
     }
     function drum(d, at) {
-      if (d.indexOf('k') >= 0) S.tone({ type: 'sine', f0: 150, f1: 45, dur: 0.14, vol: 0.28, at: at, bus: 'music' });
-      if (d.indexOf('s') >= 0) {
-        S.noise({ f0: 2000, f1: 900, dur: 0.12, vol: 0.09, q: 0.8, at: at, bus: 'music' });
-        S.tone({ type: 'triangle', f0: 200, f1: 140, dur: 0.06, vol: 0.06, at: at, bus: 'music' });
+      var M = 'music';
+      if (d.indexOf('k') >= 0) {
+        // バスドラム：音程がすっと下がる「ドン」＋最初の「カッ」
+        S.synth({ f: 160, f1: 42, glide: 0.12, dur: 0.1, vol: 0.34, at: at, bus: M, osc: [{ type: 'sine' }], env: { a: 0.001, d: 0.18, s: 0, r: 0.1 } });
+        S.noise({ type: 'highpass', f0: 3000, dur: 0.012, vol: 0.05, at: at, bus: M });
       }
-      if (d.indexOf('h') >= 0) S.noise({ type: 'highpass', f0: 7000, dur: 0.035, vol: 0.035, at: at, bus: 'music' });
+      if (d.indexOf('s') >= 0) {
+        // スネア：ザッ（響き付き）＋トン
+        S.noise({ type: 'bandpass', f0: 2600, f1: 1400, dur: 0.16, vol: 0.12, q: 0.6, at: at, bus: M, reverb: 0.3 });
+        S.synth({ f: 220, f1: 150, glide: 0.06, dur: 0.04, vol: 0.09, at: at, bus: M, osc: [{ type: 'triangle' }], env: { a: 0.001, d: 0.08, s: 0, r: 0.05 } });
+      }
+      if (d.indexOf('h') >= 0) S.noise({ type: 'highpass', f0: 8000, dur: 0.04, vol: 0.04, at: at, bus: M, pan: 0.3 });
     }
 
     function schedule(at) {
@@ -151,7 +180,7 @@
         for (var n = 0; n < e.notes.length; n++) if (e.notes[n]) play1(p.inst, e.notes[n] * k, at, e.len * sd);
       }
       // フィーバー中はハイハットを16分で
-      if (fever && cur === TRACKS.play && step % 2 === 1) S.noise({ type: 'highpass', f0: 8000, dur: 0.03, vol: 0.03, at: at, bus: 'music' });
+      if (fever && cur === TRACKS.play && step % 2 === 1) S.noise({ type: 'highpass', f0: 9000, dur: 0.03, vol: 0.03, at: at, bus: 'music', pan: -0.3 });
     }
 
     function tick() {

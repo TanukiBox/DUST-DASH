@@ -33,9 +33,17 @@
 
   Camera.prototype.follow = function (px, py, dt, floorY) {
     this.x = px - this.viewW * this.anchor;
-    // 高い足場にいるときは画面も上へ。高く跳んだら追いかける（頭の上に少し余白）
+    // 高い足場にいるときは画面も上へ。
+    // 高く跳んだときは「頭が画面の上から出そうなときだけ」追いかける（ふつうの2段ジャンプでは画面を動かさない。
+    // 少しの高さで画面が上下すると、カクっと揺れたように見えるため）
     var room = this.groundY / this.scale;
-    var target = Math.min((floorY || 0) * 0.8, py - 150 + room - 60);
+    var base = (floorY || 0) * 0.8;
+    var need = py - 75 - 36 / this.scale + room; // 頭が画面の上から36pxの所に来るカメラの高さ
+    // base と need の小さい方。ただし境目（±soft）はなめらかにつなぐ（急に動き出さない）
+    var soft = 50, e = need - base, target;
+    if (e >= soft) target = base;
+    else if (e <= -soft) target = need;
+    else target = base - (soft - e) * (soft - e) / (4 * soft);
     // 目標へ「ばね」で近づく（急に動き出すと画面がカクっと見えるため。行きすぎないちょうどの強さ）
     var w = 7, d = Math.min(dt, 1 / 30);
     this.vy += (w * w * (target - this.y) - 2 * w * this.vy) * d;

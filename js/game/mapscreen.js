@@ -141,15 +141,11 @@
     if (lw > 0) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.lineWidth = lw; ctx.strokeStyle = COL.line; ctx.stroke(); }
   };
 
-  /** オオミチバシリの顔（小さなアイコン） */
-  function runnerHead(ctx, x, y, k) {
-    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-    D.shape(ctx, function (c) { c.moveTo(-4, -12); c.lineTo(-10, -22); c.lineTo(-1, -14); c.lineTo(2, -24); c.lineTo(5, -13); c.closePath(); }, COL.rrDark, 2.5);
-    D.oval(ctx, 0, 0, 14, 13, 0, COL.rrBrown, 3.5);
-    D.shape(ctx, function (c) { c.moveTo(10, -3); c.lineTo(26, 1); c.lineTo(10, 5); c.closePath(); }, COL.rrBeak, 3);
-    D.oval(ctx, 5, -4, 4.5, 4.5, 0, COL.white, 2);
-    ctx.fillStyle = COL.line; ctx.beginPath(); D.ellipse(ctx, 6, -4, 2.2, 2.6, 0); ctx.fill();
-    ctx.fillStyle = COL.rrEyePatch; ctx.beginPath(); D.ellipse(ctx, 10, -7, 3, 2, 0.3); ctx.fill();
+  /** 主人公（ゲームと同じ絵）を小さく描く。足元が (x, y) */
+  function runner(ctx, x, y, k, t, running, angle) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(angle || 0); ctx.scale(k, k);
+    DD.drawRoadrunner(ctx, 0, 0, { phase: running ? t * 26 : 0, time: t, speedN: running ? 0.6 : 0, air: false, vy: 0, stretch: 0, eat: 0, blink: (t % 2.4) < 0.12 ? 1 : 0 });
     ctx.restore();
   }
 
@@ -213,12 +209,18 @@
     }
     // 主人公の顔：点線の上を進む
     var hp = arcPt(ease);
-    if (t < 1.5) runnerHead(ctx, hp.x, hp.y - 16 - Math.abs(Math.sin(t * 14)) * 5, 1.3);
-    else runnerHead(ctx, x1 - r2 * 0.6, cy - r2 * 0.75 - Math.abs(Math.sin(t * 6)) * 4, 1.3);
+    // 主人公：点線の上を走っていき、着いたら次の丸の上で待つ
+    if (t < 1.5) {
+      var hp2 = arcPt(Math.min(1, ease + 0.02));
+      runner(ctx, hp.x, hp.y - 4, 0.7, t, true, Math.atan2(hp2.y - hp.y, hp2.x - hp.x) * 0.8);
+    } else {
+      var hop = Math.max(0, Math.sin((t - 1.5) * 9)) * 10 * Math.max(0, 1 - (t - 1.5) * 1.2);
+      runner(ctx, x1 - 4, cy - r2 - 2 - hop, 0.7, t, false, 0);
+    }
 
     // 名前と特色（開いてから）
     var last = m.to >= n - 1;
-    var ty = cy - r2 - 30;
+    var ty = cy - r2 - 74;
     ctx.save();
     var lk = open > 0 ? U.easeOutBack(U.clamp((t - 1.6) / 0.3, 0, 1)) : 0;
     if (lk > 0) {
