@@ -531,7 +531,12 @@
         if (self.t < 0.45) return;
         app.sfx.play('ui'); app.go('shop', { from: 'result' });
       } };
-      app.setButtons([this.btn, this.shopBtn]);
+      this.shareBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+        if (self.t < 0.45) return;
+        app.sfx.play('ui');
+        DD.shareResult(self.res);
+      } };
+      app.setButtons([this.btn, this.shopBtn, this.shareBtn]);
     },
     retry: function (app) {
       if (this.t < 0.45) return; // 押しっぱなしの誤タップ防止
@@ -552,10 +557,10 @@
       ctx.fillRect(0, 0, ui.w, ui.h);
 
       var pw = Math.min(ui.w - 36, 380), ph = 436;
-      var btnH = 72, gap = 26;
+      var btnH = 72, gap = 26, shareH = 54;
       // 横画面：ボタンをカードの右にならべて、縦の長さをおさえる
       var sideW = 200, land = ui.w > ui.h * 1.15 && ui.w > pw + sideW + 60;
-      var total = land ? ph : ph + gap + btnH;
+      var total = land ? ph : ph + gap + btnH + 12 + shareH;
       var px = land ? (ui.w - (pw + 24 + sideW)) / 2 : (ui.w - pw) / 2;
       var ccx = px + pw / 2; // カードのまん中
       var py = U.clamp((ui.h - total) / 2, ui.safeTop + 40, ui.h);
@@ -662,11 +667,13 @@
       var bx0 = (ui.w - (bw + gapB + bw2)) / 2;
       var b = { x: bx0, y: py + ph + gap, w: bw, h: btnH };
       var b2 = { x: bx0 + bw + gapB, y: py + ph + gap, w: bw2, h: btnH };
+      var b3 = { x: bx0, y: b.y + btnH + 12, w: bw + gapB + bw2, h: shareH };
       if (land) {
-        // 横画面：カードの右に縦にならべる
+        // 横画面：カードの右に縦にならべる（上から もう一度・強化・シェア）
         var sx = px + pw + 24;
-        b = { x: sx, y: py + ph - btnH * 2 - 18, w: sideW, h: btnH };
-        b2 = { x: sx, y: py + ph - btnH, w: sideW, h: btnH };
+        b3 = { x: sx, y: py + ph - shareH, w: sideW, h: shareH };
+        b2 = { x: sx, y: b3.y - 16 - btnH, w: sideW, h: btnH };
+        b = { x: sx, y: b2.y - 16 - btnH, w: sideW, h: btnH };
       }
       var bk = U.clamp((this.t - 0.3) / 0.3, 0, 1);
       if (bk > 0) {
@@ -674,6 +681,14 @@
         ctx.globalAlpha = bk;
         D.button(ctx, b, T('retry'), { size: 30 });
         D.button(ctx, b2, T('shop'), { size: 22, fill: '#6cc06b', shade: '#3f8a45' });
+        // シェア（X のマーク）
+        D.button(ctx, b3, '', { fill: '#2a2a2e', shade: '#000000' });
+        var shT = T('share'), shW = D.measure(ctx, shT, 22), lx = b3.x + b3.w / 2 - (shW + 34) / 2, ly = b3.y + b3.h / 2 - 1;
+        ctx.strokeStyle = COL.white; ctx.lineCap = 'round'; ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.moveTo(lx, ly - 10); ctx.lineTo(lx + 20, ly + 10); ctx.stroke();
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(lx + 20, ly - 10); ctx.lineTo(lx, ly + 10); ctx.stroke();
+        D.text(ctx, shT, lx + 34, ly + 1, { size: 22, fill: COL.white, lw: 0, align: 'left' });
         if (canBuyAny(app)) {
           D.oval(ctx, b2.x + b2.w - 6, b2.y + 4, 12, 12, 0, COL.bad, 3);
           D.text(ctx, '!', b2.x + b2.w - 6, b2.y + 5, { size: 16, fill: COL.white, lw: 0 });
@@ -688,6 +703,7 @@
       };
       place(app, this.btn, map(b));
       place(app, this.shopBtn, map(b2));
+      place(app, this.shareBtn, map(b3));
     },
     press: function (app, p) {
       // キーボード（スペース・Enter）でももう一度

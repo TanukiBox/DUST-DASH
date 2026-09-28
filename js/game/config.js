@@ -161,7 +161,9 @@
       rockRock: 600, holeRock: 800,
       stepUp: 60, stepDown: 60, islands: 150, overhang: 250, whirl: 120, tumble: 0
     },
-    MILESTONE: 250,           // この距離ごとに「○m 突破！」を出す
+    MILESTONE: 250,
+    // ---- シェア ----
+    SHARE_URL: '',            // ゲームを公開したら、ここにその URL を書く（例 'https://〇〇.github.io/DUST-DASH/'）           // この距離ごとに「○m 突破！」を出す
 
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）
