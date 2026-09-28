@@ -523,6 +523,8 @@
       this.t = 0;
       // コインと記録を保存（L セーブ）
       this.rec = app.progress.finishRun(this.res);
+      // つかまった・落ちたときは結果の曲（ゴールしたときは、エンディングの曲がそのまま続く）
+      if (!this.res.cleared) app.bgm.play('result');
       var self = this;
       this.btn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.retry(app); } };
       this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {

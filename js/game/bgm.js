@@ -10,7 +10,7 @@
  * ・ステージが進むと調と速さが上がる。フィーバー中はハイハットが細かくなり、メロディが1オクターブ上に
  *
  *   var bgm = DD.createBgm(sound);
- *   bgm.play('title');   // 'title' | 'play' | 'ending'（2つ目に true で、同じ曲でも頭から）
+ *   bgm.play('title');   // 'title' | 'play' | 'result' | 'ending'（2つ目に true で、同じ曲でも頭から）
  *   bgm.setStage(2);     // プレイ中のステージ（0から）
  *   bgm.setFever(true);
  *   bgm.stop(1.0);       // 1秒でフェードアウト
@@ -88,6 +88,20 @@
           'A4 - - - C5 - A4 - F4 - - - A4 - C5 - | B4 - - - D5 - B4 - G4 - - - B4 - D5 - | C5 - - - E5 - C5 - A4 - - - C5 - E5 - | A5 - - - - - G5 - E5 - - - - - - - | ' +
           'A5 - - - G5 - F5 - E5 - F5 - A5 - - - | G5 - - - F5 - E5 - D5 - E5 - G5 - - - | E5 - - - D5 - C5 - B4 - C5 - D5 - - - | E5 - - - - - - - G#4 - - - B4 - - -' },
         { inst: 'drum', score: rep('kh . h . sh . h k kh . h . sh . h h', 16) }
+      ]
+    },
+    // ---- 結果（つかまった・落ちた）：少しさみしいけれど、「もう一度！」と思えるやさしい曲 ----
+    result: {
+      bpm: 88,
+      parts: [
+        { inst: 'bass', score: 'A2 - - - - - - - E2 - - - - - - - | F2 - - - - - - - C3 - - - - - - - | C3 - - - - - - - G2 - - - - - - - | G2 - - - - - - - D3 - - - - - - - | ' +
+                               'A2 - - - - - - - E2 - - - - - - - | F2 - - - - - - - C3 - - - - - - - | G2 - - - - - - - D3 - - - - - - - | E2 - - - - - - - B2 - - - G#2 - - -' },
+        { inst: 'arp', score: 'A3 . C4 . E4 . A4 . E4 . C4 . E4 . C4 . | F3 . A3 . C4 . F4 . C4 . A3 . C4 . A3 . | C4 . E4 . G4 . C5 . G4 . E4 . G4 . E4 . | G3 . B3 . D4 . G4 . D4 . B3 . D4 . B3 . | ' +
+                              'A3 . C4 . E4 . A4 . E4 . C4 . E4 . C4 . | F3 . A3 . C4 . F4 . C4 . A3 . C4 . A3 . | G3 . B3 . D4 . G4 . D4 . B3 . D4 . B3 . | E3 . G#3 . B3 . E4 . B3 . G#3 . B3 . G#3 .' },
+        { inst: 'soft', score: 'E5 - - - D5 - C5 - A4 - - - - - - - | C5 - - - D5 - E5 - F5 - - - E5 - - - | G5 - - - E5 - C5 - D5 - - - E5 - - - | D5 - - - - - - - B4 - - - - - - - | ' +
+                               'E5 - - - D5 - C5 - A4 - - - C5 - D5 - | E5 - - - F5 - E5 - C5 - - - A4 - - - | B4 - - - C5 - D5 - G5 - - - F5 - D5 - | E5 - - - - - - - G#4 - - - B4 - - -' },
+        { inst: 'pad', score: [Am, F, C, Gh, Am, F, Gh, E].map(hold).join(' | ') },
+        { inst: 'drum', score: rep('k . . . h . . . k . . . h . . .', 8) }
       ]
     },
     // ---- エンディング：明るい長調のファンファーレ ----
