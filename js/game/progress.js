@@ -32,7 +32,7 @@
     var data = {
       coins: store.get('coins', 0),
       upg: store.get('upg', {}),
-      best: store.get('best', { speed: 0, dist: 0, combo: 0 }),
+      best: store.get('best', { speed: 0, dist: 0, combo: 0, endless: 0 }),
       runs: store.get('runs', 0),     // 遊んだ回数（2回目からは操作の説明を出さない）
       clears: store.get('clears', 0)  // ゴールした回数
     };
@@ -48,6 +48,8 @@
       get best() { return data.best; },
       get runs() { return data.runs; },
       get clears() { return data.clears; },
+      /** エンドレスモードが遊べるか（一度ゴールすると解放） */
+      get endlessUnlocked() { return data.clears > 0; },
       level: function (id) { return data.upg[id] || 0; },
       effect: function (id) { return DD.upgradeEffect[id](api.level(id)); },
       /** 次のレベルの値段（最大なら null） */
@@ -72,11 +74,12 @@
         if (res.maxSpeed > data.best.speed) { data.best.speed = res.maxSpeed; rec.speed = true; }
         if (res.distance > data.best.dist) { data.best.dist = res.distance; rec.dist = true; }
         if (res.maxCombo > data.best.combo) { data.best.combo = res.maxCombo; rec.combo = true; }
+        if (res.endless && res.distance > (data.best.endless || 0)) { data.best.endless = res.distance; rec.endless = true; }
         save();
         return rec;
       },
       /** 確認用：全部消す */
-      reset: function () { data.coins = 0; data.upg = {}; data.best = { speed: 0, dist: 0, combo: 0 }; data.runs = 0; data.clears = 0; save(); }
+      reset: function () { data.coins = 0; data.upg = {}; data.best = { speed: 0, dist: 0, combo: 0, endless: 0 }; data.runs = 0; data.clears = 0; save(); }
     };
     return api;
   };

@@ -163,6 +163,7 @@
       this.fx = new DD.Effects();
       this.cues = {};
       this.drops = [];
+      this.firstClear = !app.progress.endlessUnlocked; // 初めてのクリア → エンドレスモード解放
       var self = this;
       this.skipBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.finish(app); } };
       app.setButtons([this.skipBtn]);
@@ -265,6 +266,7 @@
       this.cue(app, 'drink', 9.6, 'eat');
       this.cue(app, 'hop1', 9.9, 'double');
       this.cue(app, 'hop2', 11.0, 'double');
+      if (this.firstClear) this.cue(app, 'unlock', 12.2, 'buy');
       if (this.cue(app, 'music', 6.6)) { if (app.bgm) app.bgm.play('ending'); }
       if (this.cue(app, 'title', 11.2, 'perfect')) {
         for (i = 0; i < 40; i++) this.fx.burst(r.x + (Math.random() - 0.5) * 500, -300 - Math.random() * 200, ['#ff6b5b', '#ffcf3f', '#6cc06b', '#5b9cf0', '#b35cff'][i % 5], 1, true);
@@ -377,6 +379,14 @@
         ctx.rotate(-0.05);
         D.text(ctx, T('escaped'), 0, 0, { size: 60, fill: COL.good, maxW: ui.w - 30 });
         D.text(ctx, 'THE END', 0, 54, { size: 26, fill: COL.white, lw: 6, maxW: ui.w - 30 });
+        if (this.firstClear && t > 12.2) {
+          var uk = U.easeOutBack(U.clamp((t - 12.2) / 0.3, 0, 1));
+          ctx.save(); ctx.translate(0, 110); ctx.scale(uk, uk); ctx.rotate(0.04);
+          var uw = Math.min(ui.w - 40, 360);
+          D.shape(ctx, function (c) { D.roundRect(c, -uw / 2, -24, uw, 48, 20); }, COL.accent, 4);
+          D.text(ctx, T('endlessUnlocked'), 0, 1, { size: 24, fill: COL.white, lw: 0, maxW: uw - 24 });
+          ctx.restore();
+        }
         ctx.restore();
       }
       // はじまりと終わりのフェード

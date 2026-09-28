@@ -62,6 +62,40 @@
     return out;
   }
 
+  /** 遊ぶモード：'goal'（ゴールをめざす）か 'endless'（クリアすると解放） */
+  function currentMode(app) {
+    return app.progress.endlessUnlocked && app.store.get('mode', 'goal') === 'endless' ? 'endless' : 'goal';
+  }
+
+  /** モードの切りかえスイッチ（タイトル）。まだ遊べないエンドレスには鍵 */
+  function drawModeSwitch(app, ctx, r, t, lockMsgT) {
+    var mode = currentMode(app), locked = !app.progress.endlessUnlocked;
+    var half = r.w / 2;
+    D.shape(ctx, function (c) { D.roundRect(c, r.x, r.y + 3, r.w, r.h, r.h / 2); }, COL.sandDeep, 3);
+    D.shape(ctx, function (c) { D.roundRect(c, r.x, r.y, r.w, r.h, r.h / 2); }, 'rgba(255,246,226,0.95)', 3);
+    // えらんでいる方をオレンジに
+    var sx = mode === 'goal' ? r.x : r.x + half;
+    D.shape(ctx, function (c) { D.roundRect(c, sx + 4, r.y + 4, half - 8, r.h - 8, (r.h - 8) / 2); }, COL.accent, 0);
+    var cy = r.y + r.h / 2 + 1;
+    D.text(ctx, T('modeGoal'), r.x + half / 2, cy, { size: 17, fill: mode === 'goal' ? COL.white : COL.ink, lw: 0, maxW: half - 18 });
+    ctx.save();
+    if (locked) ctx.globalAlpha = 0.45;
+    D.text(ctx, (locked ? '🔒 ' : '') + T('modeEndless'), r.x + half * 1.5, cy, { size: 17, fill: mode === 'endless' ? COL.white : COL.ink, lw: 0, maxW: half - 18 });
+    ctx.restore();
+    // 解放されたばかり：NEW の印
+    if (!locked && !app.store.get('modeSeen', false)) {
+      var bounce = Math.abs(Math.sin(t * 4)) * 3;
+      D.shape(ctx, function (c) { D.roundRect(c, r.x + r.w - 44, r.y - 14 - bounce, 48, 22, 11); }, COL.bad, 2.5);
+      D.text(ctx, 'NEW', r.x + r.w - 20, r.y - 3 - bounce, { size: 13, fill: COL.white, lw: 0 });
+    }
+    // 鍵のかかったエンドレスを押したとき
+    if (lockMsgT > 0) {
+      ctx.save(); ctx.globalAlpha = Math.min(1, lockMsgT * 2);
+      D.text(ctx, T('endlessLocked'), r.x + r.w / 2, r.y + r.h + 22, { size: 16, fill: COL.white, lw: 5, maxW: app.ui.w - 30 });
+      ctx.restore();
+    }
+  }
+
   /** 買える強化があるか（ボタンに印を出す） */
   function canBuyAny(app) {
     for (var i = 0; i < DD.UPGRADES.length; i++) if (app.progress.canBuy(DD.UPGRADES[i].id)) return true;
@@ -78,11 +112,19 @@
       var self = this;
       this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('shop', { from: 'title' }); } };
       this.storyBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('story', { next: 'title' }); } };
-      app.setButtons([this.shopBtn, this.storyBtn]);
+      this.lockMsgT = 0;
+      this.modeBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+        if (!app.progress.endlessUnlocked) { app.sfx.play('hurt'); self.lockMsgT = 2; return; }
+        app.sfx.play('ui');
+        app.store.set('mode', currentMode(app) === 'goal' ? 'endless' : 'goal');
+        app.store.set('modeSeen', true);
+      } };
+      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn]);
       app.bgm.play('title');
     },
     update: function (app, dt) {
       this.t += dt;
+      if (this.lockMsgT > 0) this.lockMsgT -= dt;
       this.demo.update(dt, app.W, app.H);
     },
     render: function (app, ctx) {
@@ -122,15 +164,28 @@
       ctx.scale(pulse, pulse);
       D.text(ctx, T('tapToStart'), 0, 0, { size: Math.min(ui.w * 0.08, 36), fill: COL.white, maxW: ui.w - 40 });
       ctx.restore();
-      if (app.input.finePointer && !app.input.isTouch && !land) {
+      var keyHint = app.input.finePointer && !app.input.isTouch && !land;
+      if (keyHint) {
         D.text(ctx, T('keyHint'), cx, startY + 38, { size: 18, fill: COL.cream, lw: 4 });
       }
 
-      // ベスト記録（ゴールしたことがあれば、クリアの回数も）
+      // ベスト記録（ゴールしたことがあれば、クリアの回数も。エンドレスではエンドレスの最高距離）
       if (best.speed > 0) {
         var bestText = T('best') + ' ' + best.speed + ' km/h';
-        if (app.progress.clears > 0) bestText += '  ・  ' + T('clears') + ' ×' + app.progress.clears;
+        if (currentMode(app) === 'endless') bestText = T('endlessBest') + ' ' + (best.endless || 0) + ' m';
+        else if (app.progress.clears > 0) bestText += '  ・  ' + T('clears') + ' ×' + app.progress.clears;
         D.text(ctx, bestText, cx, bestY, { size: 20, fill: COL.white, lw: 6, maxW: ui.w - 40 });
+      }
+
+      // モードの切りかえ（はじめて遊ぶときは出さない）
+      if (app.progress.runs > 0) {
+        var mw = Math.min(ui.w - 60, 320), mh = 44;
+        var my = land ? ui.h - ui.safeBottom - 60 - mh : startY + (keyHint ? 62 : 40);
+        var mr = { x: cx - mw / 2, y: my, w: mw, h: mh };
+        drawModeSwitch(app, ctx, mr, this.t, this.lockMsgT);
+        place(app, this.modeBtn, mr);
+      } else {
+        this.modeBtn.w = 0;
       }
 
       // 持っているコイン（左上）
@@ -172,7 +227,7 @@
   var Play = {
     enter: function (app) {
       var self = this;
-      this.game = new DD.Game({ up: upgradesFor(app) });
+      this.game = new DD.Game({ up: upgradesFor(app), mode: currentMode(app) });
       // つかまったら結果へ。ゴールしたらエンディングを見てから結果へ
       this.game.onOver = function (res) { app.go(res.cleared ? 'ending' : 'result', { game: self.game, result: res }); };
       this.hint = { jumped: false, firstEatT: null };
@@ -241,7 +296,7 @@
       var ui = app.ui;
       var k = b.t < 0.3 ? U.easeOutBack(b.t / 0.3) : 1;
       var a = b.t > 2.0 ? 1 - (b.t - 2.0) / 0.4 : 1;
-      var st = DD.STAGES[Math.min(b.stage, DD.STAGES.length - 1)];
+      var st = DD.stageAt(b.stage, this.game.endless);
       ctx.save();
       ctx.globalAlpha = Math.max(0, a);
       ctx.translate(ui.w / 2, ui.safeTop + 215);
@@ -251,7 +306,7 @@
       var rw = Math.min(ui.w - 40, 320), rh = 92;
       D.shape(ctx, function (c) { D.roundRect(c, -rw / 2, -rh / 2 + 4, rw, rh, 24); }, 'rgba(74,45,26,0.35)', 0);
       D.shape(ctx, function (c) { D.roundRect(c, -rw / 2, -rh / 2, rw, rh, 24); }, 'rgba(255,246,226,0.92)', 4);
-      var last = b.stage >= DD.STAGES.length - 1;
+      var last = !this.game.endless && b.stage >= DD.STAGES.length - 1;
       D.text(ctx, last ? T('finalStage') : T('stage', { n: b.stage + 1 }), 0, -14, { size: 40, fill: last ? COL.bad : COL.accent, maxW: rw - 30 });
       D.text(ctx, T('stage_' + st.key), 0, 24, { size: 22, fill: COL.ink, lw: 0, maxW: rw - 30 });
       ctx.restore();
@@ -407,10 +462,12 @@
   /** 画面の下：ステージの進み具合のバー */
   function drawStageBar(app, ctx, g) {
     var ui = app.ui, m = g.meters();
-    var st = Math.min(DD.STAGES.length - 1, Math.floor(m / DD.CFG.STAGE_M)), k = U.clamp((m - st * DD.CFG.STAGE_M) / DD.CFG.STAGE_M, 0, 1);
-    var final = st === DD.STAGES.length - 1;
-    var label = T('stage', { n: st + 1 }) + '/' + DD.STAGES.length;
-    var lw = D.measure(ctx, label, 16) + 12, gw = final ? 60 : 30;
+    var st = Math.floor(m / DD.CFG.STAGE_M);
+    if (!g.endless) st = Math.min(DD.STAGES.length - 1, st);
+    var k = U.clamp((m - st * DD.CFG.STAGE_M) / DD.CFG.STAGE_M, 0, 1);
+    var final = !g.endless && st === DD.STAGES.length - 1;
+    var label = g.endless ? '∞ ' + T('stage', { n: st + 1 }) : T('stage', { n: st + 1 }) + '/' + DD.STAGES.length;
+    var lw = D.measure(ctx, label, 16) + 12, gw = final ? 84 : 30;
     // ラベルとゴールの旗が画面からはみ出さないように、バーの長さを決める
     var bw = Math.min(ui.w * 0.6, 340, ui.w - ui.safeLeft - ui.safeRight - lw - gw - 24), bh = 10;
     var bx = ui.safeLeft + (ui.w - ui.safeLeft - ui.safeRight - (lw + bw + gw)) / 2 + lw, by = ui.h - ui.safeBottom - 26;
@@ -498,7 +555,7 @@
       // リボン見出し
       var rw = Math.min(pw * 0.78, 280), rh = 56;
       D.shape(ctx, function (c) { D.roundRect(c, ccx - rw / 2, py - rh / 2, rw, rh, 20); }, res.cleared ? '#6cc06b' : COL.bad, 5);
-      D.text(ctx, T(res.cleared ? 'escaped' : 'caught'), ccx, py + 2, { size: 30, fill: COL.white, maxW: rw - 20 });
+      D.text(ctx, T(res.cleared ? 'escaped' : res.fell ? 'fellHole' : 'caught'), ccx, py + 2, { size: 30, fill: COL.white, maxW: rw - 20 });
 
       // 最高時速（いちばん大きく）
       var cx = ccx;
@@ -525,8 +582,9 @@
       var c1 = px + colW / 2, c2 = px + colW * 1.5, c3 = px + colW * 2.5;
       var lab = { size: 17, fill: COL.sandDeep, lw: 0, maxW: colW - 12 };
       var val = { size: 32, fill: COL.ink, lw: 0, maxW: colW - 14 };
-      D.text(ctx, T('distance'), c1, rowY - 22, lab);
-      D.text(ctx, res.distance + ' m', c1, rowY + 14, val);
+      // エンドレスでは距離が記録（新記録ならオレンジ）
+      D.text(ctx, res.endless ? T('endlessDist') : T('distance'), c1, rowY - 22, lab);
+      D.text(ctx, res.distance + ' m', c1, rowY + 14, this.rec.endless ? { size: 32, fill: COL.accent, lw: 0, maxW: colW - 14 } : val);
       D.text(ctx, T('snakes'), c2, rowY - 22, lab);
       ctx.save();
       ctx.translate(c2 - 22, rowY + 30);

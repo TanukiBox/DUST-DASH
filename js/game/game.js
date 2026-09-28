@@ -50,7 +50,8 @@
     this.spawned = 0;
     this.nextSpawnX = null;
     this.over = false;
-    this.goalX = CFG.GOAL_M * CFG.UNITS_PER_KMH * 3.6; // ゴールの場所（ゲーム内の座標）
+    this.endless = opts.mode === 'endless'; // エンドレスモード（ゴールなし。クリアすると遊べる）
+    this.goalX = this.endless ? Infinity : CFG.GOAL_M * CFG.UNITS_PER_KMH * 3.6; // ゴールの場所（ゲーム内の座標）
     this.cleared = false;  // ゴールした（逃げきった）
     this.clearT = 0;
     this.catchT = 0;       // タカが急降下を始めてからの時間
@@ -72,7 +73,8 @@
 
   /** 画面サイズが決まってから毎フレーム呼ぶ */
   Game.prototype.update = function (dt, W, H) {
-    this.cam.fit(W, H, this.demo ? 0 : this.speedN());
+    // 穴に落ちたときは、カメラの引き具合をその時のままにする（急にズームしないように）
+    this.cam.fit(W, H, this.demo ? 0 : this.fell ? this.fellN : this.speedN());
     this.visScale = 1 + (this.cam.zoom - 1) * CFG.PREY_ZOOM_COMP;
     if (this.hitStop > 0) {
       this.hitStop -= dt;
@@ -86,13 +88,14 @@
       left -= h;
     }
     // つかまれた後はカメラを止めて、空へ連れ去られるのを見送る
-    if (!(this.over && this.catchT >= CFG.HAWK_DIVE_TIME)) this.cam.follow(this.player.x, this.player.y, dt, this.camFloor);
+    if (!(this.over && (this.fell || this.catchT >= CFG.HAWK_DIVE_TIME))) this.cam.follow(this.player.x, this.player.y, dt, this.camFloor);
     this.fx.update(dt);
     if (this.staminaFlash > 0) this.staminaFlash = Math.max(0, this.staminaFlash - dt * 3);
     if (this.coinPop > 0) this.coinPop = Math.max(0, this.coinPop - dt * 6);
     if (this.staminaFlash < 0) this.staminaFlash = Math.min(0, this.staminaFlash + dt * 3);
     // ステージが進んだ
-    var st = Math.min(DD.STAGES.length - 1, Math.floor(this.meters() / CFG.STAGE_M));
+    var st = Math.floor(this.meters() / CFG.STAGE_M);
+    if (!this.endless) st = Math.min(DD.STAGES.length - 1, st);
     if (!this.demo && !this.over && st > (this.stage || 0)) {
       this.stage = st;
       this.events.push('stage');
@@ -166,7 +169,14 @@
         this.events.push('feverEnd');
       }
     }
-    if (this.over) {
+    if (this.fell) {
+      // 穴の底へ落ちていく → 少ししたら結果へ
+      this.fallT += dt;
+      if (this.fallT > 1.4 && this.onOver) {
+        var cbFall = this.onOver; this.onOver = null;
+        cbFall(this.result());
+      }
+    } else if (this.over) {
       var wasDiving = this.catchT < CFG.HAWK_DIVE_TIME;
       this.catchT += dt;
       if (wasDiving && this.catchT >= CFG.HAWK_DIVE_TIME) {
@@ -190,7 +200,7 @@
     if (this.cried && danger < CFG.HAWK_CRY_AT - 0.2) this.cried = false;
 
     if (!this.demo && !this.over) this.assist(dt);
-    if (this.over && this.catchT >= CFG.HAWK_DIVE_TIME) {
+    if (this.over && !this.fell && this.catchT >= CFG.HAWK_DIVE_TIME) {
       // つかまれて空へ
       var hk = this.hawkPos();
       p.x = hk.x + 4; p.y = hk.y + 108;
@@ -543,33 +553,26 @@
     return null;
   };
 
-  /** 穴に落ちた：大きく減速して、穴の向こうへ飛び出して地面に戻る */
+  /** 穴に落ちた：その場でゲームオーバー（穴の底へ落ちていく） */
   Game.prototype.fall = function (hole) {
+    if (this.over) return;
     var p = this.player;
-    this.speed = Math.max(0, this.speed - CFG.HOLE_LOSS);
+    this.over = true;
+    this.fell = hole || this.holeNear(p.x) || { x0: p.x - 60, x1: p.x + 60, y: 0 };
+    this.fallT = 0;
+    this.fellN = this.speedN();
+    this.speed = 0;
     this.boost = 0;
-    this.stamina = Math.max(0, this.stamina - CFG.HOLE_STAMINA * this.up.ukemi);
-    this.staminaFlash = -1;
     this.combo = 0;
-    var target = (hole ? hole.x1 : p.x) + 40;
-    var ty = this.floorAt(target, true);
-    var hy = (hole && hole.y) || 0;
-    if (ty === null) ty = hy;
-    p.y = Math.min(p.y, hy + 70);
-    // 向こう側の足場より高く飛び出す
-    var gu = CFG.GRAVITY_UP, gd = CFG.GRAVITY_DOWN;
-    var v0 = Math.max(CFG.HOLE_RECOVER_V, Math.sqrt(2 * gu * (p.y - ty + 110)));
-    p.launch(v0);
-    p.jumps = 2; // 飛び出し中は空中ジャンプなし
-    p.invuln = CFG.HURT_INVULN;
-    p.hurt = 0.6;
-    // 着地までに穴の向こう側へ届くように横にも進ませる
-    var apexY = p.y - v0 * v0 / (2 * gu);
-    var air = v0 / gu + Math.sqrt(2 * Math.max(0, ty - apexY) / gd);
-    p.extraVX = Math.max(0, (target - p.x) / air - this.speed * CFG.UNITS_PER_KMH);
+    this.fever = 0;
+    p.extraVX = 0;
+    p.hurt = 1;
+    // 穴のまん中あたりへ吸いこまれるように
+    p.x = U.clamp(p.x, this.fell.x0 + 20, this.fell.x1 - 20);
     this.fx.shake(10, 0.35);
-    this.fx.puff(p.x, hy, 7);
-    this.fx.pop(p.x + 10, hy - 120, '-' + CFG.HOLE_LOSS, COL.bad, 40, this.speed * CFG.UNITS_PER_KMH + p.extraVX);
+    this.fx.puff(p.x, this.fell.y || 0, 7);
+    var fl = DD.app ? DD.app.i18n.t('fellHole') : 'FELL!';
+    this.fx.pop(p.x + 10, (this.fell.y || 0) - 130, fl, COL.bad, 40, 0);
     this.events.push('fall');
   };
 
@@ -621,7 +624,7 @@
       if (pt.obstacle && this.lastObstacle && this.allowTwo === false) continue;
       var w = pt.w * (pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1); // 先に進むほど障害物が増える
       // ステージの特色（峡谷はひさし・足場が多い など）
-      var bias = CFG.STAGE_BIAS[DD.STAGES[Math.min(DD.STAGES.length - 1, Math.floor(m / CFG.STAGE_M))].key];
+      var bias = CFG.STAGE_BIAS[DD.stageAt(Math.floor(m / CFG.STAGE_M), this.endless).key];
       if (bias && bias[pt.name]) w *= bias[pt.name];
       if (pt.name === 'stepDown') w *= 1 + (-lvl) / 60;
       list.push({ name: pt.name, w: w }); total += w;
@@ -693,6 +696,8 @@
       coinsPicked: Math.round(this.coinsPicked),
       coinsDist: Math.floor(this.meters() / CFG.DIST_COIN_PER),
       cleared: this.cleared,
+      endless: this.endless,
+      fell: !!this.fell,
       coins: Math.round((this.coinsPicked + Math.floor(this.meters() / CFG.DIST_COIN_PER)) * this.up.luck),
       time: this.time
     };
@@ -751,7 +756,7 @@
     var sh = this.fx.shakeOffset();
 
     // 空・遠景（距離で時間帯が変わる）
-    var sky = DD.skyAt(this.meters());
+    var sky = DD.skyAt(this.meters(), this.endless);
     this.sky = sky;
     DD.currentSky = sky;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -809,8 +814,20 @@
       DD.KINDS[it.type].draw(ctx, it);
       ctx.restore();
     }
-    p.draw(ctx, this.speedN());
-    if (this.over) {
+    if (this.fell) {
+      // 穴に落ちたときは、穴のふちより下を隠して「落ちていく」ように見せる
+      var fh = this.fell, fy = fh.y || 0;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(bnd.left - 100, bnd.top - 2000, bnd.right - bnd.left + 200, fy - bnd.top + 2000);
+      ctx.rect(fh.x0, fy, fh.x1 - fh.x0, 3000);
+      ctx.clip();
+      p.draw(ctx, 0);
+      ctx.restore();
+    } else {
+      p.draw(ctx, this.speedN());
+    }
+    if (this.over && !this.fell) {
       var hk = this.hawkPos();
       DD.drawHawk(ctx, hk.x, hk.y, { t: this.time, dive: hk.dive, talons: hk.talons, angle: hk.angle, scale: 1.3 });
     }
@@ -823,7 +840,7 @@
       var g0 = cam.toScreen(p.x, 0);
       var lane = { x: g0.x - 30 * cam.scale, y0: g0.y - 230 * cam.scale, y1: g0.y + 16 * cam.scale };
       this.fx.drawSpeedLines(ctx, W, H, ps.x, ps.y, this.speedN(), lane);
-      var shadowK = this.over ? Math.max(0, 1 - this.catchT * 3) : 1; // 本物が来たら影は消える
+      var shadowK = this.fell ? 0 : this.over ? Math.max(0, 1 - this.catchT * 3) : 1; // 本物が来たら影は消える
       DD.drawHawkShadow(ctx, W, H, g0.y, g0.x, this.shadow * shadowK, this.time);
       this.drawMarkers(ctx, dpr);
     }

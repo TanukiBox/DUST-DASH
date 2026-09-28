@@ -16,15 +16,35 @@
     { key: 'desert', p: 0.22, style: 'mesa',
       top: '#9fd9ea', mid: '#d9f0ec', bottom: '#fde8c4', far: '#e3bd90', mid2: '#eec892', near: '#d8ae78', tint: '#ffffff', tintA: 0.00, night: 0.00,
       sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#e6b070', rockBand: '#cf9152', cap: '#fbe1a8' },
-    { key: 'canyon', p: 0.36, style: 'canyon',
+    { key: 'canyon', p: 0.34, style: 'canyon',
       top: '#86c4e6', mid: '#f5dcc3', bottom: '#ffcf9e', far: '#c4674b', mid2: '#d98452', near: '#a8533a', tint: '#ff7040', tintA: 0.05, night: 0.00,
       sand: '#eaa472', sandDark: '#d17f4c', sandDeep: '#ad5c37', rock: '#d0764a', rockBand: '#a9553a', cap: '#f4b98a' },
+    // 白い塩の湖：まっ白な平原と、青い山なみ
+    { key: 'salt', p: 0.43, style: 'salt',
+      top: '#8ecbf0', mid: '#dff1f7', bottom: '#fff6e0', far: '#9bb0d0', mid2: '#f6f3ec', near: '#cfc6b2', tint: '#ffffff', tintA: 0.00, night: 0.00,
+      sand: '#efe7d6', sandDark: '#d8cbb0', sandDeep: '#b3a282', rock: '#d8cdb4', rockBand: '#bba98a', cap: '#f8f3e6' },
+    // サボテンの森：背の高い柱サボテンがたくさん
+    { key: 'cactus', p: 0.52, style: 'cactus',
+      top: '#96d0ea', mid: '#e2f1e4', bottom: '#fbe6c0', far: '#d6a878', mid2: '#8ab866', near: '#5f9447', tint: '#ffe0a0', tintA: 0.04, night: 0.00,
+      sand: '#f0cd8c', sandDark: '#ddaa60', sandDeep: '#c48846', rock: '#e0aa6a', rockBand: '#c78c4e', cap: '#f8dca0' },
     { key: 'sunset', p: 0.60, style: 'mesa',
       top: '#7d78c4', mid: '#f29a86', bottom: '#ffc96b', far: '#b8705e', mid2: '#d98a5c', near: '#b8704f', tint: '#ff8a4a', tintA: 0.16, night: 0.05,
       sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#d98a5c', rockBand: '#b8704f', cap: '#f8c98a' },
-    { key: 'night', p: 0.84, style: 'dunes',
+    // 砂あらしの荒野：かすんだ空と、横に流れる砂
+    { key: 'storm', p: 0.66, style: 'storm',
+      top: '#a8825a', mid: '#d9aa74', bottom: '#efc58e', far: '#b3805a', mid2: '#c7925e', near: '#9a6a44', tint: '#c08040', tintA: 0.14, night: 0.05,
+      sand: '#e6b67a', sandDark: '#cf985a', sandDeep: '#a8743f', rock: '#c68e5c', rockBand: '#a06e46', cap: '#f0c890' },
+    { key: 'night', p: 0.80, style: 'dunes',
       top: '#1d2552', mid: '#34397a', bottom: '#5a5a98', far: '#2c2f5e', mid2: '#3b3c72', near: '#34355f', tint: '#1d2552', tintA: 0.38, night: 1.00,
       sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#b98a60', rockBand: '#8f6a4a', cap: '#e9cfa0' },
+    // 月夜の岩山：細長い岩の柱（フードゥー）が立ちならぶ
+    { key: 'moonrock', p: 0.89, style: 'spires',
+      top: '#18204a', mid: '#2b336e', bottom: '#4a4e8c', far: '#2c2f60', mid2: '#3a3b70', near: '#2a2b50', tint: '#1a2048', tintA: 0.36, night: 1.00,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#a88a70', rockBand: '#806650', cap: '#d8c0a0' },
+    // 夜明け前の峡谷：東の空が少しだけ明るい
+    { key: 'predawn', p: 0.97, style: 'canyon',
+      top: '#262a66', mid: '#4b4a8c', bottom: '#b47aa0', far: '#4a3f73', mid2: '#5e4d80', near: '#3e3560', tint: '#302a60', tintA: 0.28, night: 0.70,
+      sand: '#f3cf8e', sandDark: '#e3ae63', sandDeep: '#c98c4a', rock: '#b48a78', rockBand: '#8a6858', cap: '#e2c4b0' },
     // 最後のステージ：夜が明けて、朝日の向こうにオアシス（ゴール）
     { key: 'oasis', p: 0.08, style: 'oasis',
       top: '#6f7fc9', mid: '#f7b3b8', bottom: '#ffd59a', far: '#c58f9a', mid2: '#e3a88e', near: '#8f9a5a', tint: '#ff9a7a', tintA: 0.10, night: 0.15,
@@ -41,12 +61,22 @@
     return 'rgba(' + Math.round(U.lerp(x[0], y[0], t)) + ',' + Math.round(U.lerp(x[1], y[1], t)) + ',' + Math.round(U.lerp(x[2], y[2], t)) + ',' + alpha.toFixed(3) + ')';
   }
 
-  /** 距離（m）から、今のステージと景色の色を求める。ステージの終わり近くで次の景色へなめらかに変わる */
-  DD.skyAt = function (meters) {
+  /** ステージ番号（0から）→ その景色。エンドレスでは最後の次は最初にもどる */
+  DD.stageAt = function (idx, endless) {
     var n = DD.STAGES.length;
-    var idx = Math.min(n - 1, Math.floor(Math.max(0, meters) / CFG.STAGE_M)); // 最後のステージより先はない（ゴール）
+    return DD.STAGES[endless ? idx % n : Math.min(n - 1, idx)];
+  };
+
+  /**
+   * 距離（m）から、今のステージと景色の色を求める。ステージの終わり近くで次の景色へなめらかに変わる
+   * endless = エンドレスモード（ゴールがなく、景色がひと回りしてまた続く）
+   */
+  DD.skyAt = function (meters, endless) {
+    var n = DD.STAGES.length;
+    var idx = Math.floor(Math.max(0, meters) / CFG.STAGE_M);
+    if (!endless) idx = Math.min(n - 1, idx); // 最後のステージより先はない（ゴール）
     var local = meters - idx * CFG.STAGE_M;
-    var a = DD.STAGES[idx], b = DD.STAGES[Math.min(n - 1, idx + 1)];
+    var a = DD.stageAt(idx, endless), b = DD.stageAt(idx + 1, endless);
     var t = a === b ? 0 : U.clamp((local - (CFG.STAGE_M - CFG.STAGE_BLEND_M)) / CFG.STAGE_BLEND_M, 0, 1);
     t = t * t * (3 - 2 * t);
     var pb = b.p < a.p ? b.p + 1 : b.p;
@@ -133,6 +163,10 @@
     if (style === 'canyon') { drawCanyon(ctx, cam, sky, s, W, gy); return; }
     if (style === 'dunes') { drawDunes(ctx, cam, sky, s, W, gy); return; }
     if (style === 'oasis') { drawDunes(ctx, cam, sky, s, W, gy); drawPalmsBack(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'salt') { drawSalt(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'cactus') { drawCactusForest(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'storm') { drawMesa(ctx, cam, sky); drawStorm(ctx, cam, sky, s, W, gy); return; }
+    if (style === 'spires') { drawSpires(ctx, cam, sky, s, W, gy); return; }
     drawMesa(ctx, cam, sky);
   }
 
@@ -276,6 +310,113 @@
         ctx.lineTo(px, gy - hh * s);
       }
       ctx.lineTo(W + 12, gy + 2); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  /** 白い塩の湖：ぎざぎざの青い山なみと、空をうつす白い平原 */
+  function drawSalt(ctx, cam, sky, s, W, gy) {
+    var off1 = cam.x * CFG.PARALLAX_FAR, px, lx;
+    ctx.fillStyle = sky.far;
+    ctx.beginPath(); ctx.moveTo(0, gy + 2);
+    for (px = 0; px <= W + 20; px += 20) {
+      lx = px / s + off1;
+      var k = Math.floor(lx / 90), f = lx / 90 - k;
+      var h0 = 60 + U.hash(k + 50) * 110, h1 = 60 + U.hash(k + 51) * 110;
+      var peak = f < 0.5 ? U.lerp(h0, (h0 + h1) / 2 + 30, f * 2) : U.lerp((h0 + h1) / 2 + 30, h1, (f - 0.5) * 2);
+      ctx.lineTo(px, gy - 26 * s - peak * s);
+    }
+    ctx.lineTo(W + 20, gy + 2); ctx.closePath(); ctx.fill();
+    // 雪のような白い頂
+    ctx.save(); ctx.globalAlpha *= 0.35; ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, gy - 30 * s, W, 4 * s);
+    ctx.restore();
+    // 塩の平原（空の色をうつして、ほんのり光る）
+    var g = ctx.createLinearGradient(0, gy - 28 * s, 0, gy);
+    g.addColorStop(0, sky.mid2); g.addColorStop(1, sky.mid);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, gy - 28 * s, W, 30 * s);
+    // 塩のひび（六角形のもよう）
+    ctx.strokeStyle = 'rgba(180, 170, 150, 0.35)'; ctx.lineWidth = 1.5 * s;
+    var off2 = cam.x * CFG.PARALLAX_MID;
+    ctx.beginPath();
+    for (var k2 = Math.floor(off2 / 70) - 1; k2 * 70 < off2 + W / s + 70; k2++) {
+      var x0 = (k2 * 70 - off2) * s;
+      ctx.moveTo(x0, gy - 22 * s); ctx.lineTo(x0 + 20 * s, gy - 12 * s); ctx.lineTo(x0 + 8 * s, gy);
+      ctx.moveTo(x0 + 20 * s, gy - 12 * s); ctx.lineTo(x0 + 50 * s, gy - 14 * s);
+    }
+    ctx.stroke();
+  }
+
+  /** 柱サボテンのシルエット（x, gy = 根元、h = 高さ） */
+  function saguaro(ctx, x, gy, h) {
+    var w = h * 0.16;
+    ctx.beginPath();
+    D.roundRect(ctx, x - w / 2, gy - h, w, h + 4, w / 2);
+    D.roundRect(ctx, x - w * 1.9, gy - h * 0.72, w * 0.8, h * 0.36, w * 0.4);
+    D.roundRect(ctx, x - w * 1.9, gy - h * 0.44, w * 1.6, w * 0.7, w * 0.35);
+    D.roundRect(ctx, x + w * 1.1, gy - h * 0.86, w * 0.8, h * 0.4, w * 0.4);
+    D.roundRect(ctx, x + w * 0.3, gy - h * 0.54, w * 1.6, w * 0.7, w * 0.35);
+    ctx.fill();
+  }
+
+  /** サボテンの森：遠くに台地、手前に大きな柱サボテンがたくさん */
+  function drawCactusForest(ctx, cam, sky, s, W, gy) {
+    var off1 = cam.x * CFG.PARALLAX_FAR, k;
+    ctx.fillStyle = sky.far;
+    ctx.beginPath(); ctx.moveTo(0, gy + 2);
+    for (var px = 0; px <= W + 12; px += 12) {
+      var lx = px / s + off1;
+      ctx.lineTo(px, gy - (40 + 18 * Math.sin(lx * 0.004) + 10 * Math.sin(lx * 0.011 + 2)) * s);
+    }
+    ctx.lineTo(W + 12, gy + 2); ctx.closePath(); ctx.fill();
+    var layers = [[CFG.PARALLAX_MID, sky.mid2, 150, 70, 60], [CFG.PARALLAX_NEAR, sky.near, 210, 110, 90]];
+    for (var L = 0; L < layers.length; L++) {
+      var f = layers[L], off = cam.x * f[0], T = f[2];
+      ctx.fillStyle = f[1];
+      for (k = Math.floor(off / T) - 1; k * T < off + W / s + T; k++) {
+        var r1 = U.hash(k + 600 + L * 100), r2 = U.hash(k + 700 + L * 100);
+        if (r1 < 0.3) continue;
+        saguaro(ctx, (k * T + r2 * T * 0.5 - off) * s, gy + 2, (f[3] + r1 * f[4]) * s);
+      }
+    }
+  }
+
+  /** 砂あらし：かすみと、横に流れる砂のすじ */
+  function drawStorm(ctx, cam, sky, s, W, gy) {
+    var t = (global.performance ? global.performance.now() : Date.now()) / 1000;
+    var g = ctx.createLinearGradient(0, 0, 0, gy);
+    g.addColorStop(0, 'rgba(214, 170, 110, 0.15)'); g.addColorStop(1, 'rgba(230, 190, 130, 0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, gy + 2);
+    ctx.strokeStyle = 'rgba(255, 236, 200, 0.5)'; ctx.lineCap = 'round';
+    for (var i = 0; i < 18; i++) {
+      var y = gy * (0.25 + U.hash(i * 3.3) * 0.72);
+      var len = (60 + U.hash(i * 1.7) * 120) * s;
+      var x = W - ((t * (500 + U.hash(i) * 400) * s + U.hash(i * 5.1) * W * 2 + cam.x * s * 0.6) % (W + len * 2)) + len;
+      ctx.lineWidth = (1.5 + U.hash(i * 2.9) * 2.5) * s;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + len * 0.5, y - 6 * s, x + len, y); ctx.stroke();
+    }
+  }
+
+  /** 月夜の岩山：細長い岩の柱。てっぺんに岩がのっている */
+  function drawSpires(ctx, cam, sky, s, W, gy) {
+    var layers = [[CFG.PARALLAX_FAR, sky.far, 150, 120, 150], [CFG.PARALLAX_MID, sky.mid2, 210, 70, 90], [CFG.PARALLAX_NEAR, sky.near, 280, 40, 50]];
+    for (var L = 0; L < layers.length; L++) {
+      var f = layers[L], off = cam.x * f[0], T = f[2];
+      ctx.fillStyle = f[1];
+      for (var k = Math.floor(off / T) - 1; k * T < off + W / s + T; k++) {
+        var r1 = U.hash(k + 800 + L * 50), r2 = U.hash(k + 900 + L * 50);
+        if (r1 < 0.25) continue;
+        var x = (k * T + r2 * T * 0.4 - off) * s, h = (f[3] + r1 * f[4]) * s, w = (18 + r2 * 16) * s;
+        ctx.beginPath();
+        ctx.moveTo(x - w * 0.8, gy + 2);
+        ctx.quadraticCurveTo(x - w * 0.35, gy - h * 0.5, x - w * 0.45, gy - h);
+        ctx.lineTo(x + w * 0.45, gy - h);
+        ctx.quadraticCurveTo(x + w * 0.35, gy - h * 0.5, x + w * 0.8, gy + 2);
+        ctx.closePath(); ctx.fill();
+        // のっている岩
+        ctx.beginPath(); D.ellipse(ctx, x, gy - h - w * 0.35, w * 0.8, w * 0.45, 0); ctx.fill();
+      }
     }
   }
 

@@ -86,11 +86,16 @@
     CEILING_CLEAR: 118,       // 岩のひさしの下のすきま（走っていればくぐれる高さ）
     // ステージの特色：並びの出やすさの倍率
     STAGE_BIAS: {
-      desert: { chain: 1.2 },
-      canyon: { overhang: 2.5, islands: 1.6, stepUp: 1.3 },
-      sunset: { stepUp: 1.5, stepDown: 1.5, giantCactus: 1.5 },
-      night:  { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 },
-      oasis:  { chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4 }
+      desert:   { chain: 1.2 },
+      canyon:   { overhang: 2.5, islands: 1.6, stepUp: 1.3 },
+      salt:     { hole: 1.6, holeBug: 1.5, wideHole: 1.3 },
+      cactus:   { cactus: 1.8, cactusBug: 1.6, giantCactus: 1.6 },
+      sunset:   { stepUp: 1.5, stepDown: 1.5, giantCactus: 1.5 },
+      storm:    { vulture: 1.5, rockRock: 1.5, rock: 1.3 },
+      night:    { vulture: 1.6, vulture2: 1.6, wideHole: 1.4 },
+      moonrock: { overhang: 2.2, islands: 1.5, stepUp: 1.4 },
+      predawn:  { chain: 1.3, islands: 1.3, wideHole: 1.3, holeRock: 1.3 },
+      oasis:    { chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4 }
     },
 
     // ---- 地形（高い足場）----
@@ -111,11 +116,9 @@
     },
     OBSTACLE_LOSS: 20,        // サボテン・岩に当たったときの減速（km/h。すぐ戻る）
     OBSTACLE_STAMINA: 15,     // 同、スタミナが減る量
-    HOLE_LOSS: 25,            // 穴に落ちたときの減速（km/h）
-    HOLE_STAMINA: 18,         // 同、スタミナが減る量
+    // 穴に落ちたらその場でゲームオーバー（フィーバー中だけは穴の上も走れる）
     HOLE_WIDTH: 0.3,          // 穴の幅（秒換算。速いほど広くなる）
     WIDE_HOLE_WIDTH: 0.85,    // 大穴の幅（1回のジャンプでは届かない）
-    HOLE_RECOVER_V: 1250,     // 穴から飛び出す勢い
 
     // ---- タカ ----
     // 影は「速さが土台より落ちたとき」と「スタミナが少ないとき」に大きく迫る
@@ -124,8 +127,8 @@
     HAWK_CARRY_TIME: 1.1,     // つかんで飛び去る時間（秒）→ その後に結果画面
 
     // ---- 背景 ----
-    STAGE_M: 800,             // 1ステージの長さ（m）。朝の砂漠→赤い峡谷→夕焼けのメサ→星空の砂丘→夜明けのオアシス
-    GOAL_M: 4000,             // ゴール（5ステージ目の終わり）。ここまで逃げきるとエンディング
+    STAGE_M: 700,             // 1ステージの長さ（m）。全10ステージ（background.js の DD.STAGES）
+    GOAL_M: 7000,             // ゴール（10ステージ目の終わり）。ここまで逃げきるとエンディング。クリアするとエンドレスモード
     STAGE_BLEND_M: 70,        // ステージの終わりの、この距離で次の景色へ切り替わる
     PARALLAX_FAR: 0.08,       // 遠くの台地が流れる速さ（地面を1として）
     PARALLAX_MID: 0.25,       // 砂丘

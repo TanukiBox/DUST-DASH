@@ -106,8 +106,7 @@
   DD.BGM_TRACKS = TRACKS; // 確認用
 
   // プレイ中のステージごとの調（半音）と速さ
-  var STAGE_SHIFT = [0, 2, 3, -2, 5];
-  var STAGE_BPM = [140, 144, 148, 150, 158];
+  var STAGE_SHIFT = [0, 2, 3, 5, -2, 1, -3, -1, 4, 7];
 
   DD.createBgm = function (sound) {
     var S = sound;
@@ -169,8 +168,9 @@
     }
 
     function applyStage(i) {
-      i = Math.max(0, Math.min(STAGE_SHIFT.length - 1, i));
-      shift = STAGE_SHIFT[i]; bpm = STAGE_BPM[i];
+      i = Math.max(0, i);
+      shift = STAGE_SHIFT[i % STAGE_SHIFT.length];  // エンドレスでは調がひと回りする
+      bpm = Math.min(172, 140 + i * 3);            // 速さはステージごとに上がる（上限あり）
     }
 
     var api = {
