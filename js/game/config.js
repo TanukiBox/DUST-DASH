@@ -84,20 +84,23 @@
     PERFECT_BONUS: 10,        // 並びを全部食べたとき、1匹につき これ のコイン
     WHIRL_V: 1750,            // つむじ風で飛ばされる勢い
     TUMBLE_VX: 170,           // 回転草がこちらへ転がってくる速さ
+    CACTUS_WALL_H: 360,       // サボテンの壁の高さ（2段ジャンプの最高点より高い）
+    CACTUS_WALL_W: 150,
+    FALL_ROCK_LEAD: 1.3,      // 落石が落ちはじめる時間（主人公が着く何秒前か）
     CEILING_CLEAR: 118,       // 岩のひさしの下のすきま（走っていればくぐれる高さ）
     // ステージの特色：並びの出やすさの倍率
     STAGE_BIAS: {
-    // tumble（回転草）はここに書いたステージにしか出ない
-      desert:   { bugGround: 1.6, bugAir: 1.5, chain: 1.4, overhang: 0 },
-      canyon:   { overhang: 3.0, islands: 1.8, stepUp: 1.5 },
-      salt:     { hole: 2.2, holeBug: 2.0, wideHole: 1.8, stepUp: 0.4, stepDown: 0.4, overhang: 0 },
-      cactus:   { cactus: 2.4, cactusBug: 2.2, giantCactus: 2.2, overhang: 0 },
-      sunset:   { stepUp: 2.0, stepDown: 2.0, islands: 1.6, giantCactus: 1.3 },
-      storm:    { tumble: 6, rock: 1.2, rockRock: 1.2, cactus: 0.4, giantCactus: 0.6 },
-      night:    { bugAir: 2.2, chain: 1.8, vulture: 1.4, wideHole: 1.4 },
-      moonrock: { overhang: 3.0, islands: 2.0, stepUp: 1.5 },
-      predawn:  { vulture: 2.2, vulture2: 2.2, wideHole: 1.4, holeRock: 1.3 },
-      oasis:    { tumble: 1.2, chain: 1.3, islands: 1.4, holeRock: 1.5, rockRock: 1.4, overhang: 1.5 }
+    // 名物（tumble・whirlWall など stageOnly の並び）は、ここに書いたステージにしか出ない。数字は出やすさ
+      desert:   { bugSwarm: 7, chain: 1.6, bugGround: 1.4, bugAir: 1.4, overhang: 0 },
+      canyon:   { chasm: 9, overhang: 2.5, islands: 1.5, stepUp: 1.3 },
+      salt:     { crackRun: 9, hole: 1.6, holeBug: 1.6, stepUp: 0.3, stepDown: 0.3, islands: 0.3, overhang: 0 },
+      cactus:   { whirlWall: 6, cactusRow: 6, cactus: 2.2, cactusBug: 2, giantCactus: 2, overhang: 0, hole: 0.5 },
+      sunset:   { staircase: 12, stepUp: 1.2, stepDown: 3, islands: 1.2 },
+      storm:    { tumbleHerd: 6, tumble: 5, rock: 1.2, rockRock: 1.2, cactus: 0.3, giantCactus: 0.5 },
+      night:    { fireflyTrail: 9, bugAir: 2, chain: 1.6, vulture: 1.2 },
+      moonrock: { fallRocks: 9, overhang: 2.2, islands: 1.5, rock: 0.4 },
+      predawn:  { vultureFlock: 9, vulture: 2, vulture2: 2, wideHole: 1.3 },
+      oasis:    { whirlWall: 2.5, tumbleHerd: 2, fallRocks: 2.5, crackRun: 2, chasm: 2, vultureFlock: 2, tumble: 1.5, chain: 1.3 }
     },
 
     // ---- 地形（高い足場）----

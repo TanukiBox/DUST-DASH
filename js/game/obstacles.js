@@ -175,6 +175,81 @@
   };
 
   // ------------------------------------------------------------
+  // サボテンの壁（サボテンの森の名物）：2段ジャンプでも越えられない高さ。
+  // 手前のつむじ風に乗らないと越えられない。ぶつかるとゲームオーバー（フィーバー中はふっとばせる）
+  // ------------------------------------------------------------
+  DD.KINDS.cactusWall = {
+    create: function (x) {
+      return { type: 'cactusWall', obstacle: true, deadly: true, noScale: true, x: x, y: 0, w: CFG.CACTUS_WALL_W, h: CFG.CACTUS_WALL_H, t: 0, dead: false };
+    },
+    update: function (c, dt) { c.t += dt; },
+    draw: function (ctx, c) {
+      var H = c.h, W = c.w;
+      // 3本の大サボテンを重ねる（奥は少し暗く）
+      var parts = [[-W * 0.3, 0.86, 0.92], [W * 0.32, 0.93, 0.9], [0, 1, 1.0]];
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        ctx.save();
+        ctx.translate(c.x + p[0], c.y);
+        ctx.scale(p[2], 1);
+        DD.KINDS.giantCactus.draw(ctx, { x: 0, y: 0, h: H * p[1], t: c.t });
+        ctx.restore();
+      }
+      // 根元のとげとげの茂み
+      for (i = 0; i < 5; i++) {
+        var bx = c.x - W / 2 + i * W / 4;
+        D.oval(ctx, bx, c.y - 10, 22, 16, 0, '#6aa84f', 3);
+      }
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 落石（月夜の岩山の名物）：近づくと空から岩が落ちてきて、道をふさぐ。
+  // 落ちる前から地面に影が出る。落ちた岩はジャンプでよける
+  // ------------------------------------------------------------
+  DD.KINDS.fallRock = {
+    create: function (x, y) {
+      return { type: 'fallRock', obstacle: true, x: x, y: y || 0, w: 64, h: 50, t: 0, state: 'wait', vy: 0, drop: 760, dead: false };
+    },
+    update: function (o, dt) {
+      o.t += dt;
+      if (o.groundY === undefined) o.groundY = o.y;
+      if (o.state === 'wait') { o.y = o.groundY - o.drop; return; }
+      if (o.state === 'fall') {
+        o.vy += 3400 * dt;
+        o.y += o.vy * dt;
+        if (o.y >= o.groundY) { o.y = o.groundY; o.state = 'landed'; o.justLanded = true; }
+      }
+    },
+    draw: function (ctx, o) {
+      var gy = o.groundY === undefined ? o.y : o.groundY;
+      // 地面の影（落ちてくるほど濃く大きく）
+      var k = o.state === 'landed' ? 1 : U.clamp(1 - (gy - o.y) / o.drop, 0.25, 1);
+      ctx.fillStyle = 'rgba(40, 20, 10, ' + (0.18 + 0.25 * k).toFixed(3) + ')';
+      ctx.beginPath(); D.ellipse(ctx, o.x, gy + 2, 34 * (0.6 + 0.4 * k), 8, 0); ctx.fill();
+      if (o.state === 'wait') return;
+      var th = DD.theme ? DD.theme() : null;
+      var rock = th ? th.rock : '#a88a70', band = th ? th.rockBand : '#806650';
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      if (o.state === 'fall') {
+        // 落ちてくるすじ
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-18, -60); ctx.lineTo(-18, -110); ctx.moveTo(16, -58); ctx.lineTo(16, -120); ctx.stroke();
+      }
+      D.shape(ctx, function (c) {
+        c.moveTo(-32, 0); c.quadraticCurveTo(-36, -30, -16, -46); c.quadraticCurveTo(4, -56, 22, -42);
+        c.quadraticCurveTo(36, -26, 32, 0); c.closePath();
+      }, rock, D.LW);
+      ctx.fillStyle = band;
+      ctx.beginPath(); D.ellipse(ctx, 6, -18, 14, 6, -0.3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath(); D.ellipse(ctx, -12, -34, 8, 4, -0.5); ctx.fill();
+      ctx.restore();
+    }
+  };
+
+  // ------------------------------------------------------------
   // ハゲワシ：頭の上すれすれを低く飛んでくる（ジャンプすると当たる）
   // ------------------------------------------------------------
   DD.KINDS.vulture = {
@@ -406,6 +481,14 @@
       // 前側を回る小石と葉っぱ、足元の砂けむり（前側）
       drawDebris(true);
       puffs(true);
+      // この先にサボテンの壁：「ここに乗れ！」の矢印
+      if (o.toWall && !o.used) {
+        var ay = yOf(1) - 60 - Math.abs(Math.sin(t * 5)) * 14;
+        ctx.globalAlpha = 1;
+        D.shape(ctx, function (c) {
+          c.moveTo(0, ay - 30); c.lineTo(24, ay); c.lineTo(9, ay); c.lineTo(9, ay + 26); c.lineTo(-9, ay + 26); c.lineTo(-9, ay); c.lineTo(-24, ay); c.closePath();
+        }, COL.good, 4);
+      }
       ctx.restore();
     }
   };

@@ -229,16 +229,100 @@
         this.land();
         break;
       case 'tumble':
-        // 回転草：ジャンプの一番高い所で真下を通るように、先の方から転がしてくる
+        this.run(lead, groundCoins); this.jump(); this.tumbleAtApex(); this.land();
+        break;
+
+      // ---- ステージの名物 ----
+      case 'tumbleHerd':
+        // 砂あらし：回転草の群れ。リズムよく跳び続ける
+        n = 2 + ((Math.random() * 2) | 0);
+        this.run(lead, groundCoins);
+        for (k = 0; k < n; k++) { this.jump(); this.tumbleAtApex(); this.land(); if (k < n - 1) this.run(v * U.rand(0.12, 0.2), true); }
+        break;
+      case 'whirlWall':
+        // サボテンの森：2段ジャンプでも越えられないサボテンの壁。手前のつむじ風に乗って越える
+        this.run(v * U.rand(0.35, 0.5), true);
+        var wwf = this.floor();
+        var wwh = DD.KINDS.whirl.create(gh.x + 10, wwf);
+        wwh.toWall = true; // この先に壁がある（矢印で「乗れ！」と知らせる）
+        g.items.push(wwh);
+        gh.vy = -CFG.WHIRL_V; gh.air = true; gh.jumps = 1; this.jumpFloor = wwf;
+        this.actions.push({ x: gh.x, a: 'whirl' });
+        var mkw = g.items.length, guardW = 0;
+        // 十分高くなったところの真下に壁
+        while (gh.air && gh.vy < 0 && gh.y > wwf - CFG.CACTUS_WALL_H - 150 && guardW++ < 2000) this.tick();
+        var wall = DD.KINDS.cactusWall.create(gh.x + CFG.CACTUS_WALL_W / 2 + 10);
+        wall.y = wwf;
+        g.items.push(wall);
+        this.toApex();
+        this.bigAtApex(mkw, 'emerald');
+        this.preyHere('bug', U.rand(240, 300), wwf);
+        this.land();
+        this.run(v * 0.25, true);
+        break;
+      case 'cactusRow':
+        // サボテンの森：サボテンが3つ続く
+        this.run(lead, groundCoins);
+        for (k = 0; k < 3; k++) {
+          this.jump(); this.obstacleAtApex(k === 1 && Math.random() < 0.5 ? 'rock' : 'cactus'); this.land();
+          if (k < 2) this.run(v * U.rand(0.1, 0.18), true);
+        }
+        break;
+      case 'crackRun':
+        // 塩の湖：ひび割れ（穴）が続く。とん、とん、とんと跳ぶ
+        n = 3 + ((Math.random() * 2) | 0);
+        this.run(lead, groundCoins);
+        for (k = 0; k < n; k++) {
+          x0 = this.jump(); x1 = this.land(); this.hole(x0, x1, 0.5);
+          if (k < n - 1) this.run(v * U.rand(0.08, 0.14), true);
+        }
+        break;
+      case 'staircase':
+        // 夕焼けのメサ：大階段を3段かけ上がる（高い所にいたら、いったん地面へ跳び下りてから）
+        this.run(lead, groundCoins);
+        if (this.floor() < -40) {
+          this.jump(); this.setLevel(gh.x + v * 0.12, 0); this.land();
+          this.run(v * U.rand(0.2, 0.3), true);
+        }
+        for (k = 0; k < 3; k++) {
+          var sc0 = this.floor(), sc1 = Math.max(CFG.FLOOR_MIN, sc0 - U.rand(55, 75));
+          if (sc1 >= sc0 - 20) break;
+          this.jump(); var sax = this.toApex(); this.setLevel(sax - 10, sc1); this.land();
+          this.run(v * U.rand(0.12, 0.2), true);
+        }
+        break;
+      case 'fallRocks':
+        // 月夜の岩山：空から岩が落ちてくる（1〜2個）
+        n = 1 + ((Math.random() * 2) | 0);
+        this.run(lead, groundCoins);
+        for (k = 0; k < n; k++) { this.jump(); this.obstacleAtApex('fallRock'); this.land(); if (k < n - 1) this.run(v * U.rand(0.2, 0.3), true); }
+        break;
+      case 'vultureFlock':
+        // 夜明け前の峡谷：霧の中からハゲワシの群れ（ジャンプせずに走りぬける）
+        this.run(v * 0.3, false);
+        var fx0 = gh.x + v * 0.35, fl2 = this.floor();
+        this.run(v * 1.1, true);
+        var vs2 = CFG.OBSTACLE.vulture.vx, now2 = Math.max(g.speed, 35) * CFG.UNITS_PER_KMH;
+        for (k = 0; k < 3; k++) {
+          var mx = fx0 + k * v * 0.3;
+          var tt = Math.max(0, (mx - g.player.x) / (now2 + vs2));
+          var vk = DD.createItem('vulture', mx + vs2 * tt);
+          vk.baseY = vk.y = fl2 - CFG.OBSTACLE.vulture.lift - (k === 1 ? CFG.OBSTACLE.vulture.h + 6 : 0);
+          g.items.push(vk);
+        }
+        this.run(v * 0.15, false);
+        break;
+      case 'bugSwarm':
+      case 'fireflyTrail':
+        // 朝の砂漠：虫の大群／星空の砂丘：空にホタルの道。着地せずに踏み続ける
+        n = 5 + ((Math.random() * 3) | 0);
+        this.fixed = true;
+        var sid = ++this.chainSeq || (this.chainSeq = 1);
         this.run(lead, groundCoins); this.jump();
-        var tx = this.toApex(), tfl = this.jumpFloor;
-        var vNow = Math.max(g.speed, 35) * CFG.UNITS_PER_KMH;
-        var sx2 = tx + CFG.TUMBLE_VX * Math.max(0, (tx - g.player.x) / vNow);
-        var flat2 = true;
-        for (var qx2 = tx - 40; qx2 <= sx2 + 40; qx2 += 16) { if (g.floorAt(qx2, true) !== tfl) { flat2 = false; break; } }
-        var tw = flat2 ? DD.KINDS.tumble.create(sx2, tfl) : DD.createItem('rock', tx);
-        tw.y = tw.baseY = tfl;
-        g.items.push(tw);
+        for (k = 0; k < n; k++) {
+          var sp = name === 'fireflyTrail' ? this.preyHere('bug', U.rand(70, 130)) : this.preyHere('bug', Math.random() < 0.5 ? 0 : U.rand(40, 100));
+          if (sp) { sp.chainId = sid; sp.chainN = n; }
+        }
         this.land();
         break;
       case 'giantCactus':
@@ -322,8 +406,9 @@
         this.run(v * U.rand(0.2, 0.35), true);
         break;
       case 'islands':
-        // 高さのちがう足場を、穴をこえて跳び移っていく
-        n = 2 + ((Math.random() * 3) | 0);
+      case 'chasm':
+        // 高さのちがう足場を、穴をこえて跳び移っていく（峡谷の「谷渡り」は4つ続く）
+        n = name === 'chasm' ? 4 : 2 + ((Math.random() * 3) | 0);
         this.run(lead, groundCoins);
         for (k = 0; k < n; k++) {
           var lvFrom = this.floor();
@@ -404,6 +489,21 @@
     }
     for (var pi = from; pi < g.items.length; pi++) if (!g.items[pi].pat) g.items[pi].pat = name; // 確認用：どの並びで置いたか
     this.clearCoinsInObstacles(from);
+  };
+
+  /** 回転草：ジャンプの一番高い所で真下を通るように、先の方から転がしてくる */
+  Course.prototype.tumbleAtApex = function () {
+    var g = this.g;
+    var tx = this.toApex(), tfl = this.jumpFloor;
+    // 主人公がここへ着くまでの時間：今の速さと、そこでのお手本の速さの間くらいで見積もる
+    var vNow = Math.max(g.speed, 35) * CFG.UNITS_PER_KMH, vThere = this.speed();
+    var sx = tx + CFG.TUMBLE_VX * Math.max(0, (tx - g.player.x) / ((vNow + vThere) / 2));
+    var flat = true;
+    for (var qx = tx - 40; qx <= sx + 40; qx += 16) { if (g.floorAt(qx, true) !== tfl) { flat = false; break; } }
+    var tw = flat ? DD.KINDS.tumble.create(sx, tfl) : DD.createItem('rock', tx);
+    tw.y = tw.baseY = tfl;
+    g.items.push(tw);
+    return tw;
   };
 
   /** 新しく置いたコインのうち、いちばん高い所のものを宝石にする */

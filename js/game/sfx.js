@@ -48,14 +48,14 @@
       },
       // 着地：やわらかい「とっ」
       land: function () {
-        S.synth({ f: 170, f1: 80, glide: 0.07, dur: 0.05, vol: 0.1, osc: [{ type: 'sine' }], env: { a: 0.002, d: 0.06, s: 0, r: 0.05 } });
-        S.noise({ type: 'lowpass', f0: 900, f1: 300, dur: 0.07, vol: 0.035 });
+        S.synth({ f: 190, f1: 90, glide: 0.07, dur: 0.05, vol: 0.18, osc: [{ type: 'sine' }, { type: 'triangle', mul: 2, gain: 0.3 }], env: { a: 0.002, d: 0.06, s: 0, r: 0.05 } });
+        S.noise({ type: 'lowpass', f0: 1400, f1: 400, dur: 0.07, vol: 0.07 });
       },
       // 食べる：「ぽん」＋ベル。コンボが続くほど音階が上がる
       eat: function (combo) {
         var k = PENTA[Math.min(Math.max(0, (combo || 1) - 1), PENTA.length - 1)];
-        S.synth({ f: 320, f1: 960, glide: 0.05, dur: 0.04, vol: 0.12, osc: [{ type: 'sine' }], env: { a: 0.002, d: 0.06, s: 0, r: 0.05 } });
-        bell(note(784, k), { vol: 0.08, delay: 0.03, d: 0.3, reverb: 0.3 });
+        S.synth({ f: 320, f1: 960, glide: 0.05, dur: 0.04, vol: 0.1, osc: [{ type: 'sine' }], env: { a: 0.002, d: 0.06, s: 0, r: 0.05 } });
+        bell(note(784, k), { vol: 0.065, delay: 0.03, d: 0.3, reverb: 0.3 });
         bell(note(784, k + 12), { vol: 0.03, delay: 0.06, d: 0.2, reverb: 0.3, pan: 0.2 });
       },
       // ヘビを食べた：低い「ドン」と、上がっていくベル
@@ -101,14 +101,15 @@
       exhausted: function () {
         S.synth({ f: 520, f1: 190, glide: 0.6, dur: 0.6, vol: 0.1, osc: SOFT, env: { a: 0.01, d: 0.4, s: 0.6, r: 0.2 }, vib: { rate: 5, depth: 30 }, reverb: 0.3 });
       },
-      // コイン：小さなベルの「チリン」。1枚ごとに鳴り、続けて取ると音階を上っていく（うるさくならないよう小さめ）
-      coin: function () {
+      // コイン：小さなベルの「チリン」。1枚ごとに鳴り、続けて取ると音階を上っていく。
+      // nth = 同じコマで何枚目か（重なったら少しずつずらす）
+      coin: function (nth) {
         var t = now();
         if (t - lastCoinT > 0.45) coinStreak = 0;    // 間があいたら、はじめの高さから
         lastCoinT = t;
         var s = PENTA[coinStreak % 10];
         coinStreak++;
-        bell(note(1319, s), { vol: 0.032, d: 0.12, r: 0.12, reverb: 0.18, pan: 0.15 });
+        bell(note(1319, s), { vol: 0.1, d: 0.12, r: 0.12, reverb: 0.18, pan: 0.15, delay: Math.max(0, (nth || 1) - 1) * 0.035 });
       },
       // 宝石：キラララン。高価な石ほど音が高く、長い
       gem: function (kind) {
@@ -141,6 +142,11 @@
           S.synth({ f: f, dur: 0.8, vol: 0.05, osc: BRASS, delay: 0.42, env: { a: 0.03, d: 0.3, s: 0.8, r: 0.6 }, filter: { f: 3000, f1: 1500, t: 1 }, reverb: 0.45, pan: (i - 1) * 0.3 });
         });
         S.noise({ f0: 600, f1: 4000, dur: 0.8, vol: 0.05, delay: 0.4, reverb: 0.3 });
+      },
+      // 落石：ズシン
+      rockfall: function () {
+        S.synth({ f: 90, f1: 40, glide: 0.3, dur: 0.15, vol: 0.2, osc: [{ type: 'sine' }, { type: 'triangle', mul: 2, gain: 0.3 }], env: { a: 0.002, d: 0.3, s: 0, r: 0.2 } });
+        S.noise({ type: 'lowpass', f0: 1200, f1: 200, dur: 0.35, vol: 0.14, reverb: 0.3 });
       },
       // 池にドボン
       splash: function () {

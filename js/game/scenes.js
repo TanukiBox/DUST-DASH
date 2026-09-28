@@ -262,7 +262,9 @@
         if (e === 'stage') app.bgm.setStage(g.stage);
         if (e === 'goal') { this.feverBanner = { text: T('goal'), t: 0 }; app.bgm.stop(0.3); }
         if (e === 'hawkDive') app.bgm.stop(1.2);
-        if (e === 'combo' || played[e]) continue; // 同じ音を1フレームに何度も鳴らさない
+        // コインは1枚ごとに鳴らす（同じコマで何枚も取ったら、少しずつずらして）
+        if (e === 'coin') { app.sfx.play('coin', played.coin = (played.coin || 0) + 1); continue; }
+        if (e === 'combo' || played[e]) continue; // ほかの音は1コマに1回
         played[e] = true;
         app.sfx.play(e, e === 'coin' ? g.coinSfx : e === 'gem' ? g.lastGem : g.combo);
       }
@@ -333,6 +335,8 @@
         if (it.x > right || it.dead) continue;
         if (it.type === 'giantCactus' && !seen.tall) key = 'tall';
         if (it.type === 'vulture' && !seen.duck) key = 'duck';
+        if (it.type === 'cactusWall' && !seen.wall) key = 'wall';
+        if (it.type === 'fallRock' && !seen.fallRock) key = 'fallRock';
       }
       for (i = 0; i < g.holes.length && !key; i++) {
         if (g.holes[i].wide && g.holes[i].x0 < right && !seen.tall) key = 'tall';
@@ -340,7 +344,8 @@
       if (key) {
         seen[key] = true;
         app.store.set('hints', seen);
-        this.hint.special = { text: T(key === 'tall' ? 'hintTall' : 'hintDuck'), until: g.time + 2.2 };
+        var hk = { tall: 'hintTall', duck: 'hintDuck', wall: 'hintWall', fallRock: 'hintFallRock' }[key];
+        this.hint.special = { text: T(hk), until: g.time + 2.4 };
       }
     },
     drawHints: function (app, ctx, g) {
@@ -574,7 +579,7 @@
       // リボン見出し
       var rw = Math.min(pw * 0.78, 280), rh = 56;
       D.shape(ctx, function (c) { D.roundRect(c, ccx - rw / 2, py - rh / 2, rw, rh, 20); }, res.cleared ? '#6cc06b' : COL.bad, 5);
-      D.text(ctx, T(res.cleared ? 'escaped' : res.fell ? 'fellHole' : 'caught'), ccx, py + 2, { size: 30, fill: COL.white, maxW: rw - 20 });
+      D.text(ctx, T(res.cleared ? 'escaped' : res.fell ? 'fellHole' : res.crashed ? 'crashed' : 'caught'), ccx, py + 2, { size: 30, fill: COL.white, maxW: rw - 20 });
 
       // 最高時速（いちばん大きく）
       var cx = ccx;

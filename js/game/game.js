@@ -169,7 +169,13 @@
         this.events.push('feverEnd');
       }
     }
-    if (this.fell) {
+    if (this.crashed) {
+      this.crashed.t += dt;
+      if (this.crashed.t > 1.5 && this.onOver) {
+        var cbCrash = this.onOver; this.onOver = null;
+        cbCrash(this.result());
+      }
+    } else if (this.fell) {
       // 穴の底へ落ちていく → 少ししたら結果へ
       this.fallT += dt;
       if (this.fallT > 1.4 && this.onOver) {
@@ -200,7 +206,7 @@
     if (this.cried && danger < CFG.HAWK_CRY_AT - 0.2) this.cried = false;
 
     if (!this.demo && !this.over) this.assist(dt);
-    if (this.over && !this.fell && this.catchT >= CFG.HAWK_DIVE_TIME) {
+    if (this.over && !this.fell && !this.crashed && this.catchT >= CFG.HAWK_DIVE_TIME) {
       // つかまれて空へ
       var hk = this.hawkPos();
       p.x = hk.x + 4; p.y = hk.y + 108;
@@ -238,6 +244,15 @@
       // 地面を走る生き物は、段差や穴の手前で止まる（足場に埋まらないように）
       if (it.vx > 0 && !it.flying && this.floorAt(it.x + it.w / 2 + 4, true) !== it.y) it.vx = 0;
       if (it.bump > 0) it.bump -= dt;
+      if (it.type === 'fallRock') {
+        // 落石：主人公が近づいたら落ちはじめる。落ちたら地面がゆれる
+        if (it.state === 'wait' && it.x - p.x < Math.max(this.speed, 35) * CFG.UNITS_PER_KMH * CFG.FALL_ROCK_LEAD) it.state = 'fall';
+        if (it.justLanded) {
+          it.justLanded = false;
+          this.fx.shake(7, 0.25); this.fx.puff(it.x, it.y, 8);
+          this.events.push('rockfall');
+        }
+      }
       if (!this.over && !this.cleared && !it.deco) this.collide(it);
     }
   };
@@ -286,6 +301,11 @@
     var iTop = it.y - h, iBot = it.y;
     var m = CFG.STOMP_MARGIN_X;
 
+    if (it.deadly && this.fever <= 0) {
+      // サボテンの壁：ぶつかったらゲームオーバー（体の半分くらい重なったら）
+      if (b.x1 > it.x - w / 2 + 10 && b.x0 < it.x + w / 2 && b.bottom > iTop + 10 && b.top < iBot) this.crash(it);
+      return;
+    }
     if (it.obstacle && this.fever > 0) {
       // フィーバー中：障害物はふっとばす
       if (b.x1 + m > ix0 && b.x0 - m < ix1 && b.bottom >= iTop && b.top <= iBot) this.smash(it);
@@ -553,6 +573,22 @@
     return null;
   };
 
+  /** サボテンの壁にぶつかった：その場でゲームオーバー（はね返されて、しりもち） */
+  Game.prototype.crash = function (it) {
+    if (this.over) return;
+    var p = this.player;
+    this.over = true;
+    this.crashed = { t: 0, type: it.type };
+    this.speed = 0; this.boost = 0; this.combo = 0; this.fever = 0;
+    p.x = Math.min(p.x, it.x - it.w / 2 - 18);
+    p.vy = Math.min(p.vy, -420); p.onGround = false; p.extraVX = -260; p.hurt = 1.5;
+    this.fx.shake(14, 0.4);
+    this.fx.burst(p.x + 20, p.y - 40, COL.bad, 8, true);
+    var msg = DD.app ? DD.app.i18n.t('crashed') : 'BLOCKED!';
+    this.fx.pop(p.x, p.y - 140, msg, COL.bad, 36, 0);
+    this.events.push('hurt');
+  };
+
   /** 穴に落ちた：その場でゲームオーバー（穴の底へ落ちていく） */
   Game.prototype.fall = function (hole) {
     if (this.over) return;
@@ -604,8 +640,18 @@
     { name: 'islands', w: 14, terrain: true, obstacle: true },
     // 上からの障害物
     { name: 'overhang', w: 9, obstacle: true },
-    // 転がってくる回転草（砂あらしなど、決まったステージだけ）
+    // ステージの名物（決まったステージだけ。重さは config.js の STAGE_BIAS）
     { name: 'tumble', w: 22, obstacle: true, stageOnly: true },
+    { name: 'tumbleHerd', w: 20, obstacle: true, stageOnly: true },
+    { name: 'whirlWall', w: 20, obstacle: true, stageOnly: true },
+    { name: 'cactusRow', w: 20, obstacle: true, stageOnly: true },
+    { name: 'crackRun', w: 20, obstacle: true, stageOnly: true },
+    { name: 'chasm', w: 20, obstacle: true, terrain: true, stageOnly: true },
+    { name: 'staircase', w: 20, terrain: true, stageOnly: true },
+    { name: 'fallRocks', w: 20, obstacle: true, stageOnly: true },
+    { name: 'vultureFlock', w: 20, obstacle: true, stageOnly: true },
+    { name: 'bugSwarm', w: 20, stageOnly: true },
+    { name: 'fireflyTrail', w: 20, stageOnly: true },
     { name: 'holeRock', w: 5, obstacle: true }
   ];
 
@@ -624,7 +670,8 @@
       if (pt.name === this.lastPattern && pt.name === 'snake') continue; // ヘビ2連続はなし
       // 障害物の2連続：はじめは出ない。遠くへ行くほど出るようになる
       if (pt.obstacle && !pt.stageOnly && this.lastObstacle && this.allowTwo === false) continue; // ステージの名物（回転草）は続いてもよい
-      var w = pt.w * (pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1); // 先に進むほど障害物が増える
+      // 先に進むほど障害物が増える（ステージの名物は、はじめからよく出る）
+      var w = pt.w * (pt.stageOnly ? 1 + 1.5 * d : pt.obstacle ? 1 + CFG.DIFF_OBSTACLE * d : 1);
       // ステージの特色（峡谷はひさし・足場が多い など）
       var bias = CFG.STAGE_BIAS[DD.stageAt(Math.floor(m / CFG.STAGE_M), this.endless).key];
       if (pt.stageOnly && !(bias && bias[pt.name])) continue;
@@ -673,7 +720,7 @@
       }
       c.build(name);
       this.lastPattern = name;
-      this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture|islands|overhang|tumble/.test(name);
+      this.lastObstacle = /cactus|rock|hole|Hole|Cactus|vulture|islands|overhang|tumble|Wall|crack|chasm|Rocks|Flock/.test(name);
       this.spawned++;
       c.gap(v * U.rand(CFG.SPAWN_GAP_MIN, CFG.SPAWN_GAP_MAX) * (1 - CFG.DIFF_GAP * this.difficulty()));
       this.nextSpawnX = c.gh.x;
@@ -707,6 +754,7 @@
       cleared: this.cleared,
       endless: this.endless,
       fell: !!this.fell,
+      crashed: !!this.crashed,
       coins: Math.round((this.coinsPicked + Math.floor(this.meters() / CFG.DIST_COIN_PER)) * this.up.luck),
       time: this.time
     };
@@ -786,6 +834,16 @@
     // 地面に時間帯の色（キャラクターには かけない：夜でも見やすく）
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     DD.drawGroundTint(ctx, cam, sky);
+    // 星空の砂丘：まわりが暗やみ。主人公のまわりだけ見える（獲物や障害物はこの上に描くので、光って見える）
+    var wDark = stageWeight(sky, 'night');
+    if (wDark > 0.01 && !this.demo) {
+      var ps0 = cam.toScreen(this.player.x + 60, this.player.y - 60), big = Math.max(W, H);
+      var dg = ctx.createRadialGradient(ps0.x, ps0.y, big * 0.1, ps0.x, ps0.y, big * 0.52);
+      dg.addColorStop(0, 'rgba(2, 3, 12, 0)');
+      dg.addColorStop(0.55, 'rgba(2, 3, 12, ' + (0.55 * wDark).toFixed(3) + ')');
+      dg.addColorStop(1, 'rgba(2, 3, 12, ' + (0.9 * wDark).toFixed(3) + ')');
+      ctx.fillStyle = dg; ctx.fillRect(0, 0, W, H);
+    }
     cam.apply(ctx, dpr, sh.x, sh.y);
 
     var p = this.player, vs = this.visScale;
@@ -843,20 +901,25 @@
     } else {
       p.draw(ctx, this.speedN());
     }
-    if (this.over && !this.fell) {
+    if (this.over && !this.fell && !this.crashed) {
       var hk = this.hawkPos();
       DD.drawHawk(ctx, hk.x, hk.y, { t: this.time, dive: hk.dive, talons: hk.talons, angle: hk.angle, scale: 1.3 });
     }
     this.fx.drawFront(ctx);
+    // 夜明け前の峡谷：手前にも うすい霧
+    if (wFog > 0.01) { ctx.save(); ctx.globalAlpha = 0.5; drawFog(ctx, bnd, wFog, this.time * 1.4 + 7); ctx.restore(); }
 
     // 画面の座標に戻して集中線・フラッシュ
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 砂あらしの荒野：手前を砂が横に吹きぬける
+    var wStorm = stageWeight(sky, 'storm');
+    if (wStorm > 0.01) drawSandstorm(ctx, W, H, wStorm, this.time, cam.x * cam.scale);
     if (!this.demo) {
       var ps = cam.toScreen(p.x + 40, p.y - 40);
       var g0 = cam.toScreen(p.x, 0);
       var lane = { x: g0.x - 30 * cam.scale, y0: g0.y - 230 * cam.scale, y1: g0.y + 16 * cam.scale };
       this.fx.drawSpeedLines(ctx, W, H, ps.x, ps.y, this.speedN(), lane);
-      var shadowK = this.fell ? 0 : this.over ? Math.max(0, 1 - this.catchT * 3) : 1; // 本物が来たら影は消える
+      var shadowK = (this.fell || this.crashed) ? 0 : this.over ? Math.max(0, 1 - this.catchT * 3) : 1; // 本物が来たら影は消える
       DD.drawHawkShadow(ctx, W, H, g0.y, g0.x, this.shadow * shadowK, this.time);
       this.drawMarkers(ctx, dpr);
     }
@@ -926,6 +989,24 @@
       g.addColorStop(1, 'rgba(230, 255, 140, 0)');
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** 砂あらし（画面の座標）：かすみと、横に流れる砂のすじ */
+  function drawSandstorm(ctx, W, H, w, t, scroll) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(214, 164, 100, ' + (0.16 * w).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 26; i++) {
+      var y = H * (0.1 + U.hash(i * 2.3) * 0.85);
+      var len = 40 + U.hash(i * 1.7) * 110;
+      var sp = 700 + U.hash(i) * 600;
+      var x = W + len - ((t * sp + U.hash(i * 5.1) * 3000 + scroll * 0.4) % (W + len * 2));
+      ctx.strokeStyle = 'rgba(255, 232, 190, ' + ((0.25 + U.hash(i * 3.7) * 0.35) * w).toFixed(3) + ')';
+      ctx.lineWidth = 1.5 + U.hash(i * 2.9) * 2.5;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + len * 0.5, y - 4, x + len, y + 1); ctx.stroke();
     }
     ctx.restore();
   }
