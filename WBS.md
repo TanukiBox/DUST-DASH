@@ -345,4 +345,4 @@
   - 参加は自分でえらぶ（結果画面の「ランキングに参加」かランキング画面から）。参加してからの記録が送られる。参加をやめることもできる。
   - タイトルの右下（横画面は左下）に「ランキング」。結果画面のカードの下に「距離 12位！」などの札。押すとランキング画面。
   - サーバー：Cloudflare Workers + D1（`server/worker.js`、手順は `server/README.md`）。記録のあり得なさ（時間のわりに進みすぎ・速すぎ）ははじく。うまい自動プレイの記録（ゴール9回・エンドレス3回）はすべて通ることを確認。
-- [ ] Cloudflare に Worker とデータベースを作って、URL を config.js の RANK_API に書く（手順は server/README.md）
+- [x] Cloudflare に Worker とデータベースを作って、URL を config.js の RANK_API に書いた（手順は server/README.md）
