@@ -165,6 +165,7 @@
     // ---- シェア ----
     SHARE_URL: 'https://tanukibox.github.io/DUST-DASH/', // ゲームを公開している URL（GitHub Pages）。シェアの文章に入る
     SITE_URL: 'https://tanukibox.github.io/',            // Tanuki Box のトップページ（タイトルの「Tanuki Box」から開く）
+    RANK_API: '',             // ランキングのサーバー（Cloudflare Workers の URL）。空ならランキングは出さない（server/README.md）
 
     // ---- 出現 ----
     SPAWN_GAP_MIN: 0.8,       // 次の出現までの間隔（秒換算・最小）

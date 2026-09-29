@@ -124,7 +124,8 @@
         app.sfx.play('ui');
         try { var w = global.open(DD.CFG.SITE_URL, '_blank'); if (w) w.opener = null; } catch (e) { /* 開けなくても遊びは続ける */ }
       } };
-      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn, this.siteBtn]);
+      this.rankBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('ranking', { back: { scene: 'title' } }); } };
+      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn, this.siteBtn, this.rankBtn]);
       app.bgm.play('title');
     },
     update: function (app, dt) {
@@ -215,6 +216,17 @@
       D.text(ctx, '▶ ' + T('story'), sb.x + sb.w / 2, sb.y + sb.h / 2 + 1, { size: 15, fill: COL.ink, lw: 0, maxW: sb.w - 12 });
       place(app, this.storyBtn, sb);
 
+      // みんなのランキング（右下。横画面ではストーリーの上）
+      if (app.rank.enabled) {
+        var rb = land ? { x: sb.x, y: sb.y - 46, w: 128, h: 36 } : { x: ui.w - ui.safeRight - 14 - 128, y: sb.y, w: 128, h: 36 };
+        D.shape(ctx, function (c) { D.roundRect(c, rb.x, rb.y, rb.w, rb.h, 18); }, 'rgba(255,246,226,0.85)', 3);
+        DD.drawTrophy(ctx, rb.x + 20, rb.y + rb.h / 2, 20);
+        D.text(ctx, T('ranking'), rb.x + 34 + (rb.w - 40) / 2, rb.y + rb.h / 2 + 1, { size: 15, fill: COL.ink, lw: 0, maxW: rb.w - 44 });
+        place(app, this.rankBtn, rb);
+      } else {
+        this.rankBtn.w = 0;
+      }
+
       D.text(ctx, T('credit'), cx, ui.h - ui.safeBottom - 22, { size: 18, fill: COL.cream, lw: 4 });
       var cw = D.measure(ctx, T('credit'), 18) + 24;
       place(app, this.siteBtn, { x: cx - cw / 2, y: ui.h - ui.safeBottom - 40, w: cw, h: 34 });
@@ -234,7 +246,8 @@
   var Play = {
     enter: function (app) {
       var self = this;
-      this.game = new DD.Game({ up: upgradesFor(app), mode: currentMode(app) });
+      var mode = currentMode(app);
+      this.game = new DD.Game({ up: upgradesFor(app), mode: mode, bestM: app.progress.flagFor(mode) });
       // つかまったら結果へ。ゴールしたらエンディングを見てから結果へ
       this.game.onOver = function (res) { app.go(res.cleared ? 'ending' : 'result', { game: self.game, result: res }); };
       this.hint = { jumped: false, firstEatT: null };
@@ -244,10 +257,38 @@
       this.banner = null;
       this.feverBanner = this.game.fever > 0 ? { text: T('startDash'), t: 0 } : null;
       this.map = null; // マップ移動画面（ステージが変わったとき）
-      app.setButtons([]);
+      // 一時停止：右上のボタン・Esc キー・アプリを切りかえたとき
+      this.paused = false;
+      this.resumeT = 0; // つづけるときの 3・2・1
+      this.pauseBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.pause(app); } };
+      this.resumeBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.resume(app); } };
+      this.restartBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('play'); } };
+      this.titleBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('title'); } };
+      app.setButtons([this.pauseBtn]);
     },
+    canPause: function () { return !this.paused && !this.game.over && !this.game.cleared; },
+    pause: function (app, silent) {
+      if (!this.canPause()) return;
+      this.paused = true;
+      this.resumeT = 0;
+      if (!silent) app.sfx.play('ui');
+      app.setButtons([this.resumeBtn, this.restartBtn, this.titleBtn]);
+    },
+    resume: function (app) {
+      if (!this.paused) return;
+      app.sfx.play('ui');
+      this.paused = false;
+      this.resumeT = 1.5;
+      app.setButtons([this.pauseBtn]);
+    },
+    /** Esc・P キー */
+    togglePause: function (app) { if (this.paused) this.resume(app); else this.pause(app); },
+    /** ほかのアプリに切りかえた・画面を消した */
+    autoPause: function (app) { this.pause(app, true); },
     update: function (app, dt) {
       var g = this.game;
+      if (this.paused) return;
+      if (this.resumeT > 0) { this.resumeT -= dt; return; }
       // マップ移動画面の間は、ゲームを止めておく
       if (this.map) {
         this.map.t += dt;
@@ -293,6 +334,50 @@
       this.drawBanner(app, ctx);
       this.drawFeverBanner(app, ctx);
       if (this.map) DD.drawMapTransition(app, ctx, this.map);
+      this.drawPause(app, ctx);
+    },
+    /** 一時停止のボタンと、止めているときの画面 */
+    drawPause: function (app, ctx) {
+      var ui = app.ui;
+      var r = pauseRect(app);
+      if (this.canPause() || this.paused) {
+        var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+        D.oval(ctx, cx, cy + 3, r.w / 2, r.h / 2, 0, COL.sandDeep, 4);
+        D.oval(ctx, cx, cy, r.w / 2, r.h / 2, 0, COL.cream, 4);
+        D.shape(ctx, function (c) { D.roundRect(c, cx - 9, cy - 10, 6, 20, 2); }, COL.line, 0);
+        D.shape(ctx, function (c) { D.roundRect(c, cx + 3, cy - 10, 6, 20, 2); }, COL.line, 0);
+        var big = { x: r.x - 6, y: r.y - 6, w: r.w + 12, h: r.h + 12 };
+        if (this.canPause()) place(app, this.pauseBtn, big); else this.pauseBtn.w = 0;
+      } else {
+        this.pauseBtn.w = 0;
+      }
+      if (this.resumeT > 0) {
+        var n = Math.ceil(this.resumeT / 0.5), k = 1 - (this.resumeT % 0.5) / 0.5;
+        ctx.save();
+        ctx.globalAlpha = 1 - k * 0.6;
+        ctx.translate(ui.w / 2, ui.h * 0.42);
+        ctx.scale(1.4 - k * 0.4, 1.4 - k * 0.4);
+        D.text(ctx, String(n), 0, 0, { size: 90, fill: COL.good, lw: 16 });
+        ctx.restore();
+      }
+      if (!this.paused) return;
+      ctx.fillStyle = 'rgba(74, 45, 26, 0.55)';
+      ctx.fillRect(0, 0, ui.w, ui.h);
+      var pw = Math.min(ui.w - 60, 300), bh = 60, gap = 16;
+      var ph = 70 + (bh + gap) * 3;
+      var px = (ui.w - pw) / 2, py = Math.max(ui.safeTop + 50, (ui.h - ph) / 2);
+      D.shape(ctx, function (c) { D.roundRect(c, px, py + 6, pw, ph, 28); }, COL.sandDeep, 5);
+      D.shape(ctx, function (c) { D.roundRect(c, px, py, pw, ph, 28); }, COL.cream, 5);
+      D.text(ctx, T('pause'), px + pw / 2, py + 36, { size: 30, fill: COL.accent, lw: 0 });
+      var b1 = { x: px + 24, y: py + 70, w: pw - 48, h: bh };
+      var b2 = { x: b1.x, y: b1.y + bh + gap, w: b1.w, h: bh };
+      var b3 = { x: b1.x, y: b2.y + bh + gap, w: b1.w, h: bh };
+      D.button(ctx, b1, T('resume'), { size: 26 });
+      D.button(ctx, b2, T('restart'), { size: 22, fill: '#6cc06b', shade: '#3f8a45' });
+      D.button(ctx, b3, T('toTitle'), { size: 22, fill: '#b9a58a', shade: '#8a7760' });
+      place(app, this.resumeBtn, b1);
+      place(app, this.restartBtn, b2);
+      place(app, this.titleBtn, b3);
     },
     /** 「フィーバー！」：虹色でぽよんと出る */
     drawFeverBanner: function (app, ctx) {
@@ -373,7 +458,9 @@
       D.text(ctx, text, 0, 0, { size: size, fill: COL.white, maxW: ui.w - 32 });
       ctx.restore();
     },
-    press: function (app) {
+    press: function (app, p) {
+      if (this.paused) { if (p && p.x === null) this.resume(app); return; } // スペースでつづける
+      if (this.resumeT > 0) return;
       if (this.map) {
         // マップ移動画面：少し見てからタップで先へ（ジャンプにはしない）
         if (this.map.t > 0.8 && this.map.t < DD.MAP_LEN - 0.3) this.map.t = DD.MAP_LEN - 0.3;
@@ -383,13 +470,48 @@
     }
   };
 
+  /** 一時停止ボタンの場所（ミュートボタンの左） */
+  function pauseRect(app) {
+    var mr = app.muteRect();
+    return { x: mr.x - 12 - mr.w, y: mr.y, w: mr.w, h: mr.h };
+  }
+
+  /** 結果画面の「コツ」：やられ方に合わせて1つ */
+  function tipFor(app, res) {
+    if (res.cleared) return T('tipClear');
+    if (res.crashed) return T('tipWall');
+    if (res.fell) return T(res.fellWide ? 'tipFellWide' : 'tipFell');
+    var c = [];
+    if (res.hits >= 3) c.push('tipHits');
+    if (canBuyAny(app) && app.progress.level('stamina') < DD.UPGRADE_MAX) c.push('tipUpgrade');
+    if (res.eaten < 12) c.push('tipEat');
+    if (res.maxCombo < 4) c.push('tipCombo');
+    if (!c.length) c.push('tipFever', 'tipCombo');
+    return T(c[app.progress.runs % c.length]);
+  }
+
+  var BOARD_LABEL = { dist: 'distance', endless: 'endlessDist', speed: 'topSpeed' };
+
+  /** 結果画面のランキングの札の文字と、目立たせるか */
+  function rankPill(app, res) {
+    if (!app.rank.joined) return { text: T('rankJoin'), hot: true };
+    var r = res.ranks;
+    if (r === 'sending') return { text: T('rankSending'), hot: false };
+    if (!r) return { text: T('ranking'), hot: false };
+    var b = res.endless ? 'endless' : 'dist';
+    if (r[b] && r[b].improved) return { text: T('rankNewPlace', { board: T(BOARD_LABEL[b]), n: r[b].rank }), hot: true };
+    if (r.speed && r.speed.improved) return { text: T('rankNewPlace', { board: T('topSpeed'), n: r.speed.rank }), hot: true };
+    if (r[b]) return { text: T('ranking') + '  ' + T(BOARD_LABEL[b]) + ' ' + T('rankPlace', { n: r[b].rank }), hot: false };
+    return { text: T('ranking'), hot: false };
+  }
+
   /** 画面上のスタミナ・速度・距離 */
   function drawHud(app, ctx, g, comboPop) {
     var ui = app.ui, mr = app.muteRect();
     var x = ui.safeLeft + 16, y = ui.safeTop + 12;
 
     // ---- スタミナゲージ（ミュートボタンの左まで）----
-    var bx = x + 30, bw = Math.min(mr.x - 16 - bx, 440), bh = 24, by = mr.y + (mr.h - bh) / 2;
+    var bx = x + 30, bw = Math.min(pauseRect(app).x - 16 - bx, 440), bh = 24, by = mr.y + (mr.h - bh) / 2;
     var k = U.clamp(g.stamina / DD.CFG.STAMINA_MAX, 0, 1);
     var low = k < DD.CFG.FATIGUE_AT / DD.CFG.STAMINA_MAX;
     var blink = low && !g.over && Math.floor(g.time * 5) % 2 === 0;
@@ -528,11 +650,32 @@
       this.game = arg.game;
       this.res = arg.result;
       this.t = 0;
-      // コインと記録を保存（L セーブ）
-      this.rec = app.progress.finishRun(this.res);
+      var res = this.res;
+      // コインと記録を保存（L セーブ）。ランキングの画面から戻ってきたときは、もう一度は数えない
+      if (!res.saved) {
+        res.saved = true;
+        res.rec = app.progress.finishRun(res);
+        res.tip = tipFor(app, res);
+        // ランキングに参加していれば、記録を送る
+        if (app.rank.joined) {
+          res.rankSent = true;
+          res.ranks = 'sending';
+          app.rank.submit(res).then(function (r) { res.ranks = r; });
+        }
+      } else {
+        this.t = 0.45; // 戻ってきたときは、すぐ押せるように
+      }
+      this.rec = res.rec;
       // つかまった・落ちたときは結果の曲（ゴールしたときは、エンディングの曲がそのまま続く）
       if (!this.res.cleared) app.bgm.play('result');
       var self = this;
+      this.rankBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
+        if (self.t < 0.45 || !app.rank.enabled) return;
+        app.sfx.play('ui');
+        var back = { scene: 'result', arg: arg };
+        if (!app.rank.joined) app.go('rankName', { back: back, pending: res.rankSent ? null : res });
+        else app.go('ranking', { board: res.endless ? 'endless' : 'dist', back: back });
+      } };
       this.btn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { self.retry(app); } };
       this.shopBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
         if (self.t < 0.45) return;
@@ -543,7 +686,7 @@
         app.sfx.play('ui');
         DD.shareResult(self.res);
       } };
-      app.setButtons([this.btn, this.shopBtn, this.shareBtn]);
+      app.setButtons([this.btn, this.shopBtn, this.shareBtn, this.rankBtn]);
     },
     retry: function (app) {
       if (this.t < 0.45) return; // 押しっぱなしの誤タップ防止
@@ -563,8 +706,9 @@
       ctx.fillStyle = 'rgba(74, 45, 26, ' + (U.clamp(this.t / 0.3, 0, 1) * 0.45).toFixed(3) + ')';
       ctx.fillRect(0, 0, ui.w, ui.h);
 
-      var pw = Math.min(ui.w - 36, 380), ph = 436;
-      var btnH = 72, gap = 26, shareH = 54;
+      var pw = Math.min(ui.w - 36, 380), ph = 470;
+      var ranked = app.rank.enabled;
+      var btnH = 72, gap = ranked ? 38 : 26, shareH = 54;
       // 横画面：ボタンをカードの右にならべて、縦の長さをおさえる
       var sideW = 200, land = ui.w > ui.h * 1.15 && ui.w > pw + sideW + 60;
       var total = land ? ph : ph + gap + btnH + 12 + shareH;
@@ -667,7 +811,26 @@
         D.text(ctx, '×' + n, gx - 2, gemY + 1, { size: 26, fill: COL.ink, lw: 0, align: 'left' });
         ctx.restore();
       }, this);
+      // やられ方に合わせたコツ
+      ctx.strokeStyle = 'rgba(74, 45, 26, 0.2)';
+      ctx.beginPath(); ctx.moveTo(px + 24, py + 424); ctx.lineTo(px + pw - 24, py + 424); ctx.stroke();
+      D.text(ctx, res.tip || '', ccx, py + 441, { size: 15, fill: res.cleared ? '#3f8a45' : COL.accent, lw: 0, maxW: pw - 36 });
       ctx.restore();
+
+      // ランキングの札（カードの下のふち）
+      var pill = null;
+      if (ranked) {
+        var pinfo = rankPill(app, res);
+        var plw = Math.min(pw - 40, D.measure(ctx, pinfo.text, 17) + 70), plh = 36;
+        pill = { x: ccx - plw / 2, y: py + ph - plh / 2 + 3, w: plw, h: plh };
+        ctx.save();
+        ctx.globalAlpha = U.clamp((this.t - 0.3) / 0.3, 0, 1);
+        D.shape(ctx, function (c) { D.roundRect(c, pill.x, pill.y + 3, pill.w, pill.h, pill.h / 2); }, pinfo.hot ? '#c85e23' : COL.sandDeep, 3);
+        D.shape(ctx, function (c) { D.roundRect(c, pill.x, pill.y, pill.w, pill.h, pill.h / 2); }, pinfo.hot ? COL.accent : '#fff3d6', 3);
+        DD.drawTrophy(ctx, pill.x + 24, pill.y + pill.h / 2, 20, COL.good);
+        D.text(ctx, pinfo.text, pill.x + 40 + (pill.w - 52) / 2, pill.y + pill.h / 2 + 1, { size: 17, fill: pinfo.hot ? COL.white : COL.ink, lw: 0, maxW: pill.w - 56 });
+        ctx.restore();
+      }
 
       // もう一度ボタン＋強化ボタン
       var gapB = 12, bw2 = Math.min(pw * 0.36, 140), bw = Math.min(pw - bw2 - gapB, 230);
@@ -711,6 +874,7 @@
       place(app, this.btn, map(b));
       place(app, this.shopBtn, map(b2));
       place(app, this.shareBtn, map(b3));
+      if (pill) place(app, this.rankBtn, map(pill)); else this.rankBtn.w = 0;
     },
     press: function (app, p) {
       // キーボード（スペース・Enter）でももう一度
@@ -829,4 +993,6 @@
   };
 
   DD.Scenes = { title: Title, play: Play, result: Result, shop: Shop };
+  // ほかのファイルの画面（ランキングなど）でも使う道具
+  DD.sceneUtil = { uiSpace: uiSpace, place: place, currentMode: currentMode, canBuyAny: canBuyAny };
 })(window);

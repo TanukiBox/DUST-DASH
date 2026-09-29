@@ -34,6 +34,7 @@
   app.sound = TB.createSound(app.store);
   app.sfx = DD.createSfx(app.sound);
   app.bgm = DD.createBgm(app.sound);
+  app.rank = DD.createRank(app.store); // みんなのランキング（config.js の RANK_API が空なら使わない）
 
   // ---- ミュートボタン（右上）----
   var muteBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () {
@@ -71,7 +72,12 @@
     muteBtn.w = (r.w + 12) * ui.u; muteBtn.h = (r.h + 12) * ui.u;
   }
   // PC は M キーでもミュート
-  global.addEventListener('keydown', function (e) { if (e.code === 'KeyM' && !e.repeat) muteBtn.onPress(); });
+  global.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    if (e.code === 'KeyM') muteBtn.onPress();
+    // Esc・P キーで一時停止
+    if ((e.code === 'Escape' || e.code === 'KeyP') && app.scene && app.scene.togglePause) app.scene.togglePause(app);
+  });
 
   function resize() {
     var W = canvas.clientWidth || global.innerWidth;
@@ -122,7 +128,11 @@
     drawMute();
     global.requestAnimationFrame(frame);
   }
-  document.addEventListener('visibilitychange', function () { last = 0; });
+  document.addEventListener('visibilitychange', function () {
+    last = 0;
+    // ほかのアプリに切りかえたら、遊んでいる途中は一時停止
+    if (document.hidden && app.scene && app.scene.autoPause) app.scene.autoPause(app);
+  });
 
   app.go('title');
   global.requestAnimationFrame(frame);

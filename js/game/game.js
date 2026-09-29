@@ -60,6 +60,11 @@
     this.nextMilestone = CFG.MILESTONE;
     this.onOver = null;
     this.events = [];   // 効果音などに使う出来事
+    // 自分のベスト記録の場所に旗を立てる（越えたら「ベスト更新！」）
+    this.bestM = this.demo ? 0 : (opts.bestM || 0);
+    this.bestPassed = !(this.bestM > 0);
+    this.hits = 0;         // 障害物などにぶつかった回数（結果画面のコツに使う）
+    this.clearTime = 0;    // ゴールしたときの時間（ランキング用）
   }
 
   Game.prototype.speedN = function () {
@@ -111,11 +116,19 @@
     // ゴール！：タカをふりきった。少し走ってからエンディングへ
     if (!this.demo && !this.over && !this.cleared && p.x >= this.goalX) {
       this.cleared = true;
+      this.clearTime = this.time;
       this.combo = 0;
       this.fever = 0;
       this.fx.flash = 1;
       for (var ci = 0; ci < 30; ci++) this.fx.burst(p.x + 200 + Math.random() * 300, p.y - 200 - Math.random() * 200, ['#ff6b5b', '#ffcf3f', '#6cc06b', '#5b9cf0', '#b35cff'][ci % 5], 1, true);
       this.events.push('goal');
+    }
+    // ベストの旗を越えた
+    if (!this.bestPassed && !this.over && this.meters() >= this.bestM) {
+      this.bestPassed = true;
+      var bt = DD.app ? DD.app.i18n.t('bestBeat') : 'NEW BEST!';
+      this.fx.pop(p.x + 40, p.y - 150, bt, COL.good, 40, this.speed * CFG.UNITS_PER_KMH * 0.8);
+      this.events.push('best');
     }
     if (this.cleared) {
       this.clearT += dt;
@@ -504,6 +517,7 @@
   Game.prototype.hurt = function (it, loss, staminaLoss) {
     var p = this.player;
     p.hit();
+    this.hits++;
     if (it.type === 'snake') {
       it.strike = 0.4;
       it.noEat = true; // 当たったヘビはそのまま踏んでも食べられない
@@ -755,6 +769,10 @@
       endless: this.endless,
       fell: !!this.fell,
       crashed: !!this.crashed,
+      fellWide: !!(this.fell && this.fell.wide),
+      hits: this.hits,
+      eaten: this.eaten,
+      clearTime: this.clearTime,
       coins: Math.round((this.coinsPicked + Math.floor(this.meters() / CFG.DIST_COIN_PER)) * this.up.luck),
       time: this.time
     };
@@ -798,6 +816,34 @@
   Game.prototype.difficulty = function () {
     if (this.demo) return 0;
     return 1 - Math.exp(-this.meters() / CFG.DIFF_DISTANCE);
+  };
+
+  /** 自分のベスト記録の場所に立てる旗 */
+  Game.prototype.drawBestFlag = function (ctx, bnd) {
+    var x = this.bestM * CFG.UNITS_PER_KMH * 3.6;
+    if (x < bnd.left - 200 || x > bnd.right + 200) return;
+    var gy = this.levelAt(x), top = gy - 190, wave = Math.sin(this.time * 5) * 5;
+    var done = this.bestPassed;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = COL.line; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(x, gy + 4); ctx.lineTo(x, top); ctx.stroke();
+    ctx.strokeStyle = '#f3e6c8'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x, gy + 2); ctx.lineTo(x, top + 2); ctx.stroke();
+    D.oval(ctx, x, top - 4, 8, 8, 0, COL.good, 3);
+    var fw = 118, fh = 64, fy = top + 6;
+    D.shape(ctx, function (c) {
+      c.moveTo(x + 2, fy);
+      c.quadraticCurveTo(x + fw * 0.5, fy + wave, x + fw, fy + wave * 0.5);
+      c.lineTo(x + fw - 12, fy + fh / 2 + wave * 0.5);
+      c.lineTo(x + fw, fy + fh + wave * 0.5);
+      c.quadraticCurveTo(x + fw * 0.5, fy + fh + wave, x + 2, fy + fh);
+      c.closePath();
+    }, done ? '#6cc06b' : COL.bad, 4);
+    D.text(ctx, 'BEST', x + fw * 0.44, fy + 21 + wave * 0.6, { size: 22, fill: COL.white, lw: 5 });
+    D.text(ctx, this.bestM + 'm', x + fw * 0.44, fy + 46 + wave * 0.6, { size: 17, fill: COL.white, lw: 4 });
+    D.oval(ctx, x, gy + 2, 22, 7, 0, 'rgba(74,45,26,0.25)', 0);
+    ctx.restore();
   };
 
   /** 今の距離（メートル） */
@@ -864,6 +910,7 @@
     }
 
     this.fx.drawDust(ctx);
+    if (this.bestM > 0) this.drawBestFlag(ctx, bnd);
     // 速いときは獲物のまわりをふわっと光らせて見つけやすく（夜は虫がホタルのように光る）
     var glow0 = U.clamp((this.speed - CFG.GLOW_FROM) / (CFG.GLOW_FULL - CFG.GLOW_FROM), 0, 1);
     if (wNight > 0.01) drawFireflies(ctx, bnd, wNight, this.time);

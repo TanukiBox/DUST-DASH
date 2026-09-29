@@ -46,6 +46,12 @@
     var api = {
       get coins() { return data.coins; },
       get best() { return data.best; },
+      /** ベストの旗を立てる距離（なければ 0）。ゴールをめざすモードは、ゴールしたことがあれば立てない */
+      flagFor: function (mode) {
+        if (mode === 'endless') return (data.best.endless || 0) < 60 ? 0 : data.best.endless;
+        var m = data.best.goal !== undefined ? data.best.goal : (data.clears === 0 ? data.best.dist : 0);
+        return m >= DD.CFG.GOAL_M || m < 60 ? 0 : m;
+      },
       get runs() { return data.runs; },
       get clears() { return data.clears; },
       /** エンドレスモードが遊べるか（一度ゴールすると解放） */
@@ -75,6 +81,7 @@
         if (res.distance > data.best.dist) { data.best.dist = res.distance; rec.dist = true; }
         if (res.maxCombo > data.best.combo) { data.best.combo = res.maxCombo; rec.combo = true; }
         if (res.endless && res.distance > (data.best.endless || 0)) { data.best.endless = res.distance; rec.endless = true; }
+        if (!res.endless && res.distance > (data.best.goal || 0)) data.best.goal = res.distance; // ゴールをめざすモードの最長距離（ベストの旗）
         save();
         return rec;
       },

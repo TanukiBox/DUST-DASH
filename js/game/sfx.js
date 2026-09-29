@@ -87,6 +87,7 @@
         S.synth({ f: 200, f1: 60, glide: 0.25, dur: 0.15, vol: 0.18, osc: [{ type: 'sine' }], env: { a: 0.002, d: 0.2, s: 0, r: 0.1 } });
       },
       milestone: function () { fanfare([523, 659, 784, 1047], 0.08); },
+      best: function () { fanfare([659, 784, 1047, 1319], 0.07); bell(2093, { delay: 0.32, vol: 0.05, reverb: 0.5 }); },
       // ステージが変わった：金管のファンファーレ
       stage: function () { fanfare([523, 659, 784, 1047, 1319], 0.08, { vol: 0.06 }); bell(2093, { delay: 0.45, vol: 0.05, reverb: 0.5 }); },
       // つむじ風：ヒューッと巻き上がる
