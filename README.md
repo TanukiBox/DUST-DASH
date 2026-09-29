@@ -49,3 +49,6 @@
 3. 1〜2分待つと https://tanukibox.github.io/DUST-DASH/ で遊べる。以後、このブランチに push すると自動で更新される。
 - X にリンクを貼ると、`assets/ogp.png` の画像つきで大きく表示される（`index.html` の og: / twitter: の設定）。
 - シェアの文章に入る URL は `js/game/config.js` の `SHARE_URL`。
+
+## 更新がスマホに出ないとき
+ブラウザが前のファイルを覚えていることがある。`js/` や `style.css` を書きかえたら、`index.html` の `?v=2` の数字をぜんぶ1つ上げる（`?v=3` など）。
