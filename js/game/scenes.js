@@ -125,7 +125,9 @@
         try { var w = global.open(DD.CFG.SITE_URL, '_blank'); if (w) w.opener = null; } catch (e) { /* 開けなくても遊びは続ける */ }
       } };
       this.rankBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); app.go('ranking', { back: { scene: 'title' } }); } };
-      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn, this.siteBtn, this.rankBtn]);
+      // ホーム画面に追加（アプリにする）
+      this.installBtn = { x: 0, y: 0, w: 0, h: 0, onPress: function () { app.sfx.play('ui'); DD.install.start(app); } };
+      app.setButtons([this.shopBtn, this.storyBtn, this.modeBtn, this.siteBtn, this.rankBtn, this.installBtn]);
       app.bgm.play('title');
     },
     update: function (app, dt) {
@@ -215,6 +217,18 @@
       D.shape(ctx, function (c) { D.roundRect(c, sb.x, sb.y, sb.w, sb.h, 18); }, 'rgba(255,246,226,0.85)', 3);
       D.text(ctx, '▶ ' + T('story'), sb.x + sb.w / 2, sb.y + sb.h / 2 + 1, { size: 15, fill: COL.ink, lw: 0, maxW: sb.w - 12 });
       place(app, this.storyBtn, sb);
+
+      // アプリにする（右上。ミュートの左。1回遊んでから出す）
+      if (DD.install && DD.install.available && app.progress.runs > 0) {
+        var mr0 = app.muteRect(), iw = Math.min(150, D.measure(ctx, T('install'), 16) + 56), ib = { x: mr0.x - 12 - iw, y: mr0.y + 4, w: iw, h: 38 };
+        D.shape(ctx, function (c) { D.roundRect(c, ib.x, ib.y + 3, ib.w, ib.h, 19); }, '#c85e23', 3);
+        D.shape(ctx, function (c) { D.roundRect(c, ib.x, ib.y, ib.w, ib.h, 19); }, COL.accent, 3);
+        DD.drawInstallIcon(ctx, ib.x + 20, ib.y + ib.h / 2);
+        D.text(ctx, T('install'), ib.x + 34 + (ib.w - 42) / 2, ib.y + ib.h / 2 + 1, { size: 16, fill: COL.white, lw: 0, maxW: ib.w - 46 });
+        place(app, this.installBtn, ib);
+      } else {
+        this.installBtn.w = 0;
+      }
 
       // みんなのランキング（右下。横画面ではストーリーの上）
       if (app.rank.enabled) {
